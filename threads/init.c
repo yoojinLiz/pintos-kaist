@@ -78,7 +78,9 @@ main (void) {
 	argv = parse_options (argv);
 
 	/* Initialize ourselves as a thread so we can use locks,
-	   then enable console locking. */
+	   then enable console locking.
+	 * thread_init을 통해 main 쓰레드를 생성 
+	 * cosole_init을 통해 console_lock을 init*/
 	thread_init ();
 	console_init ();
 
@@ -167,8 +169,9 @@ paging_init (uint64_t mem_end) {
 	pml4_activate(0);
 }
 
-/* Breaks the kernel command line into words and returns them as
-   an argv-like array. */
+/* Breaks the kernel command line into words and returns them as an argv-like array. 
+ * 
+*/
 static char **
 read_command_line (void) {
 	static char *argv[LOADER_ARGS_LEN / 2 + 1];
@@ -177,16 +180,19 @@ read_command_line (void) {
 	int i;
 
 	argc = *(uint32_t *) ptov (LOADER_ARG_CNT);
-	p = ptov (LOADER_ARGS);
-	end = p + LOADER_ARGS_LEN;
+	p = ptov (LOADER_ARGS); // LOADER_ARGS의 가상 주소 
+	end = p + LOADER_ARGS_LEN; // LOADER_ARGS의 가상 주소 + ARGS 길이 (128)
 	for (i = 0; i < argc; i++) {
 		if (p >= end)
 			PANIC ("command line arguments overflow");
 
-		argv[i] = p;
-		p += strnlen (p, end - p) + 1;
+		argv[i] = p; 
+		p += strnlen (p, end - p) + 1; 
+		 // *string 이 maxlen보다 작으면 *string의 길이(\0 문자가 나올 때까지)를, maxlen 보다 크거나 같으면 maxlen을 반환
+		 // *다음 p값은 공백이 나오기 전까지의 문자 길이 + 1 (공백) 를 더해서 계산됨. 
 	}
-	argv[argc] = NULL;
+	// 만약 명령어가 run alarm-single 이었으면, argv[0] = run, argv[1] = alarm-single 
+	argv[argc] = NULL; // sentinal 역할의 NULL
 
 	/* Print kernel command line. */
 	printf ("Kernel command line:");
@@ -200,18 +206,20 @@ read_command_line (void) {
 	return argv;
 }
 
-/* Parses options in ARGV[]
-   and returns the first non-option argument. */
+/* Parses options in ARGV[] and returns the first non-option argument. 
+* 입력받은 command line을 공백 기준으로 분리하여 argv 배열로 넣은 상태 */
+
 static char **
 parse_options (char **argv) {
+	// *argr 이 존재하고(문자열이 있고) 해당 문자열이 - 인 동안 반복???????? 
 	for (; *argv != NULL && **argv == '-'; argv++) {
 		char *save_ptr;
 		char *name = strtok_r (*argv, "=", &save_ptr);
 		char *value = strtok_r (NULL, "", &save_ptr);
 
 		if (!strcmp (name, "-h"))
-			usage ();
-		else if (!strcmp (name, "-q"))
+			usage (); // 도움말 출력 및 poweroff
+		else if (!strcmp (name, "-q")) // 작업 수행 후 poweroff
 			power_off_when_done = true;
 #ifdef FILESYS
 		else if (!strcmp (name, "-f"))
@@ -234,20 +242,22 @@ parse_options (char **argv) {
 	return argv;
 }
 
-/* Runs the task specified in ARGV[1]. */
+/* Runs the task specified in ARGV[1]. 
+* run_task 같은 경우에 argc가 2이고, argv[0]는 run, argv[1]가 †ask. 
+*/
 static void
 run_task (char **argv) {
 	const char *task = argv[1];
 
 	printf ("Executing '%s':\n", task);
-#ifdef USERPROG
+#ifdef USERPROG // 2주차 부터는 userprog 이 있으므로, 이곳에서 실행될 것 
 	if (thread_tests){
 		run_test (task);
 	} else {
 		process_wait (process_create_initd (task));
 	}
 #else
-	run_test (task);
+	run_test (task); // 프로젝트1에서는 userprog 이 없었으니까 여기서 바로 알람, 우선순위 스케쥴링 및 mlfqs 테스트를 돌렸음 
 #endif
 	printf ("Execution of '%s' complete.\n", task);
 }
@@ -263,7 +273,9 @@ run_actions (char **argv) {
 		void (*function) (char **argv);   /* Function to execute action. */
 	};
 
-	/* Table of supported actions. */
+	/* Table of supported actions. 
+	 * action 구조체에 하나씩 값을 넣어, 구조체의 배열을 만든다
+	 * 이름이 run, argc가 2, 함수명이 run_task이고 인자가 (**argv) 인 구조체를 만든다. */
 	static const struct action actions[] = {
 		{"run", 2, run_task},
 #ifdef FILESYS
@@ -281,10 +293,10 @@ run_actions (char **argv) {
 		int i;
 
 		/* Find action name. */
-		for (a = actions; ; a++)
+		for (a = actions; ; a++)  // actions의 첫번째 구조체부터 순회 시작
 			if (a->name == NULL)
 				PANIC ("unknown action `%s' (use -h for help)", *argv);
-			else if (!strcmp (*argv, a->name))
+			else if (!strcmp (*argv, a->name)) // strcmp는 argv 값과 a->name이 같으면 0, 다르면 1이나 -1 을 반환하므로, !연산 시, argv == name 이면 break
 				break;
 
 		/* Check for required arguments. */
@@ -294,13 +306,12 @@ run_actions (char **argv) {
 
 		/* Invoke action and advance. */
 		a->function (argv);
-		argv += a->argc;
+		argv += a->argc; // argv가 다음 인자를 가리키도록 포인터 업데이트 
 	}
 
 }
 
-/* Prints a kernel command line help message and powers off the
-   machine. */
+/* Prints a kernel command line help message and powers off the machine. */
 static void
 usage (void) {
 	printf ("\nCommand line syntax: [OPTION...] [ACTION...]\n"

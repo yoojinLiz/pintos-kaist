@@ -1,3 +1,5 @@
+//* ELF 바이너리들을 로드하고 프로세스를 실행하기 위한 파일입니다.
+
 #include "userprog/process.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -34,24 +36,32 @@ process_init (void) {
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
- * The new thread may be scheduled (and may even exit)
- * before process_create_initd() returns. Returns the initd's
- * thread id, or TID_ERROR if the thread cannot be created.
- * Notice that THIS SHOULD BE CALLED ONCE. */
+  The new thread may be scheduled (and may even exit) before process_create_initd() returns. 
+  Returns the initd's thread id, or TID_ERROR if the thread cannot be created.
+  Notice that THIS SHOULD BE CALLED ONCE.
+   
+ * initd를 실행하는 쓰레드를 만드는, 딱 한번만 호출되어야 하는 함수. 
+ * filename 이름의 쓰레드를 생성한 후 tid 또는 (쓰레드 생성에 실패할 경우) TID_ERROR를 반환 
+ * dl 함수가 리턴되기 전에 새로 생성된 쓰레드가 스케줄되고, 심지어 exit 될 수도 있다. */
 tid_t
-process_create_initd (const char *file_name) {
+process_create_initd (const char *file_name) { // 수행해야 할 task 이름이 file_name 이름으로 들어온다 
 	char *fn_copy;
 	tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
+	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). 
+	 * fn_copy로 file_name 을 복사 */
 	fn_copy = palloc_get_page (0);
 	if (fn_copy == NULL)
 		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
 
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy); 
+	// thread_create는 새로 생성하고 이를 block 시켜 ready_list에 넣어주고 선점 확인까지만 한다! 
+	// 이 쓰레드가 실행할 initd(fn_copy)는 process_init()로 프로세스를 초기화한 후, process_exec(f_name)로 프로세스를 실행한다. 
+	// process_exec()는 현재 프로세스 문맥을 f_name의 파일로 전환한다. 
+	// 만약 process_exec가 리턴한 값이 -1이면 제대로 실행이 안된 것이므로 커널 패닉을 일으킨다. 
+
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
 	return tid;
@@ -158,12 +168,30 @@ error:
 	thread_exit ();
 }
 
-/* Switch the current execution context to the f_name.
- * Returns -1 on fail. */
+/* Switch the current execution context to the f_name. Returns -1 on fail.
+ * 현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 
+ * 2주차 수정 : 인자로 받은 파일 이름을 공백을 기준으로 여러 단어로 나누어지게 만들어서, 
+ * 첫 번째 단어는 프로그램 이름, 두 번째 단어부터는 인자를 나타내도록 한 후 프로그램을 실행해야 한다  */
 int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
+
+	// * 여기서부터 수정해보고 있는 부분
+
+	/* 실행할 파일명과 전달할 인자로 파싱 */
+	char *raw = f_name ;
+    char *token, *save_ptr;
+	char *argv[strlen(f_name)];
+	int i = 0; 
+
+	for (token = strtok_r (raw, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[i] = token ;
+		i++;
+	}
+	// 이렇게 되면 parsing은 잘 될 수 있을 것 같은데, 이제 이 인자들을 프로세스 실행시 어떻게 넘겨줄지를 모르겠음 
+
+   //* 여기까지가 수정해보고 있는 부분 
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -180,27 +208,24 @@ process_exec (void *f_name) {
 	success = load (file_name, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
 	if (!success)
 		return -1;
 
 	/* Start switched process. */
-	do_iret (&_if);
-	NOT_REACHED ();
+	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
+	NOT_REACHED (); // 왜 있지...? 
 }
 
 
-/* Waits for thread TID to die and returns its exit status.  If
- * it was terminated by the kernel (i.e. killed due to an
- * exception), returns -1.  If TID is invalid or if it was not a
- * child of the calling process, or if process_wait() has already
- * been successfully called for the given TID, returns -1
- * immediately, without waiting.
- *
- * This function will be implemented in problem 2-2.  For now, it
- * does nothing. */
+/* Waits for thread TID to die and returns its exit status.  
+ * If it was terminated by the kernel (i.e. killed due to an exception), returns -1. 
+ * If TID is invalid or if it was not a child of the calling process, or if process_wait() has already been successfully called for the given TID, returns -1 immediately, without waiting.
+ * This function will be implemented in problem 2-2.  For now, it does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
+	// 이 함수가 호출되는 init.c의 main 함수를 보면, process_wait() 다음 thread_exit으로 쓰레드를 종료시킴. 
+	// 따라서 이 함수가 child_tid가 종료되기를 기다리는 동안 무한루프를 써서 기다리게 한다. 
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */

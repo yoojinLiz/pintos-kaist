@@ -44,12 +44,15 @@
 #define is_kernel_vaddr(vaddr) ((uint64_t)(vaddr) >= KERN_BASE)
 
 // FIXME: add checking
-/* Returns kernel virtual address at which physical address PADDR
- *  is mapped. */
+/* Returns kernel virtual address at which physical address PADDR is mapped. */
+/*
+가상 주소가 KERN_BASE라면 물리 주소 0에 매핑되며, 가상 주소가  KERN_BASE + 0x1234 라면, 물리 주소 0x1234에 매핑된다.  
+따라서, 물리 주소에 KERN_BASE 를 더하면 커널 가상 주소를 얻을 수 있다. 
+반대로 생각해보면, 커널 가상 주소에서 KERN_BASE 를 빼주면 물리 주소를 얻을 수 있다.
+*/
 #define ptov(paddr) ((void *) (((uint64_t) paddr) + KERN_BASE))
 
-/* Returns physical address at which kernel virtual address VADDR
- * is mapped. */
+/* Returns physical address at which kernel virtual address VADDR is mapped. */
 #define vtop(vaddr) \
 ({ \
 	ASSERT(is_kernel_vaddr(vaddr)); \
