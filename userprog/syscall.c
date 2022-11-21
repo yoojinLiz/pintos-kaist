@@ -50,9 +50,52 @@ syscall_init (void) {
 }
 
 /* The main system call interface */
+
+void syscall_exit(struct values *values);
+void syscall_write(struct values *values);
+
+
+struct syscall_func syscall_func[] = {
+	{SYS_HALT,syscall_exit},
+	{SYS_EXIT,syscall_exit},
+	{SYS_FORK,syscall_exit},
+	{SYS_EXEC,syscall_exit},
+	{SYS_WAIT,syscall_exit},
+	{SYS_CREATE,syscall_exit},
+	{SYS_REMOVE,syscall_exit},
+	{SYS_OPEN,syscall_exit},
+	{SYS_FILESIZE,syscall_exit},
+	{SYS_READ,syscall_exit},
+	{SYS_WRITE,syscall_write},
+	{SYS_SEEK,syscall_exit},
+	{SYS_WRITE,syscall_exit},
+	{SYS_TELL,syscall_exit},
+	{SYS_CLOSE,syscall_exit},
+};
+
+
+/* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) {
+syscall_handler (struct intr_frame *f) {
+
 	// TODO: Your implementation goes here.
-	printf ("system call!\n");
-	thread_exit ();
+	struct values values;
+	values.syscall_number = f->R.rax;
+	values.rdi = f->R.rdi;
+	values.rsi = f->R.rsi;
+	values.rdx = f->R.rdx;
+	values.r10 = f->R.r10;
+	values.r8 = f->R.r8;
+	values.r9 = f->R.r9;
+
+	struct syscall_func call = syscall_func[values.syscall_number];
+	call.function (&values);
+}
+
+
+void syscall_write(struct values *values){
+	printf("%s",values->rsi);
+}
+void syscall_exit(struct values *values){
+	thread_exit();
 }

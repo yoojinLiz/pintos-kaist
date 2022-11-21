@@ -1,5 +1,6 @@
 #include "list.h"
 #include "../debug.h"
+#include "threads/thread.h"
 
 /* Our doubly linked lists have two header elements: the "head"
    just before the first element and the "tail" just after the
@@ -486,4 +487,26 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 				min = e;
 	}
 	return min;
+}
+
+
+bool
+check_tid_in_list(struct list *find_list,int find_tid){
+	struct list_elem *curr;
+	struct thread * find_thread;
+
+	if(list_empty(find_list)){
+		return false;
+	}
+	curr = list_begin(find_list);
+
+	while (list_end(find_list) != curr)
+	{	
+		find_thread = list_entry (curr, struct thread, elem);
+		if(find_thread->tid == find_tid){
+			return true;
+		}
+		curr = list_next(curr);	
+	}
+	return false;
 }

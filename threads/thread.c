@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -749,3 +750,11 @@ void refresh_priority(void){
 	}
 }
 
+bool check_destory_thread(struct list_elem * destory_elem){
+
+	if(list_empty(&destruction_req)){
+		return false;
+		
+	}
+	return check_tid_in_list(&destruction_req,destory_elem);
+}
