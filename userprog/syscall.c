@@ -18,6 +18,8 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include "kernel/console.h"
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
@@ -95,7 +97,9 @@ syscall_handler (struct intr_frame *f) {
 
 void syscall_write(struct values *values){
 	printf("%s",values->rsi);
+	
 }
 void syscall_exit(struct values *values){
+	thread_current()->exit_code = values->rdi;
 	thread_exit();
 }

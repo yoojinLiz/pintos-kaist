@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 //lock 구조체를 모르니까 선언해줘야 합니다 -bs-
 #include "include/threads/synch.h"
+#include "filesys/file.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -102,6 +103,9 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
+	int fd;							//* 2주차 쓰레드가 직접 연 파일의 식별자 저장
+	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
+	int exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */
 
