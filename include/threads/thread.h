@@ -5,9 +5,12 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+//lock 구조체를 모르니까 선언해줘야 합니다 -bs-
+#include "include/threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
+
 #define USERPROG
 
 /* States in a thread's life cycle. */
@@ -156,13 +159,17 @@ int64_t get_next_tick_to_awake(void);		   // next_tick_to_awake 를 리턴
 
 //* 1주차 프로젝트 동안 추가한 함수 (priority changes)
 void test_max_priority(void);
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 
 //* 1주차 프로젝트 동안 추가한 함수 (priority donation)
 void donate_priority(void);
+
 void remove_with_lock(struct lock *lock);
 void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
+
+
+bool check_destory_thread(struct list_elem * destory_elem);
 
 #endif /* threads/thread.h */
