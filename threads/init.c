@@ -74,8 +74,11 @@ main (void) {
 	bss_init ();
 
 	/* Break command line into arguments and parse options. */
-	argv = read_command_line ();
+	argv = read_command_line (); 
+    // 현재 argv 만약 명령어가 run alarm-single 이었으면, argv[0] = run, argv[1] = alarm-single, argv[2]= NULL 인 상태 
+
 	argv = parse_options (argv);
+	// 명령어에 옵션들이 있으면, 옵션에 따라 필요한 flag들을 업데이트 
 
 	/* Initialize ourselves as a thread so we can use locks,
 	   then enable console locking.
@@ -243,18 +246,25 @@ parse_options (char **argv) {
 }
 
 /* Runs the task specified in ARGV[1]. 
-* run_task 같은 경우에 argc가 2이고, argv[0]는 run, argv[1]가 †ask. 
+* run_task 같은 경우에 argc가 2이고, argv[0]는 run, argv[1]가 †ask (task 이름)
+* 만약 명령어가 run 'args-single onearg' 였다면 
+* 현재 이 task에는 파일명과 인자들이 함께 들어있는 args-single onearg 형태 . 
 */
 static void
 run_task (char **argv) {
-	const char *task = argv[1];
+	const char *task = argv[1]; 
+	/* 
+	 * 만약 명령어가 run 'args-multiple some arguments for you!'이라면
+	 * argv[0]은 run 이고 
+	 * argv[1]은 'args-multiple some arguments for you!' (실제로 출력하면 ''는 포함안됨 )
+	*/
 
 	printf ("Executing '%s':\n", task);
 #ifdef USERPROG // 2주차 부터는 userprog 이 있으므로, 이곳에서 실행될 것 
 	if (thread_tests){
 		run_test (task);
 	} else {
-		process_wait (process_create_initd (task));
+		process_wait (process_create_initd (task)); // parsing 되지 않은 task를 받아서 실행됨 
 	}
 #else
 	run_test (task); // 프로젝트1에서는 userprog 이 없었으니까 여기서 바로 알람, 우선순위 스케쥴링 및 mlfqs 테스트를 돌렸음 
@@ -275,7 +285,8 @@ run_actions (char **argv) {
 
 	/* Table of supported actions. 
 	 * action 구조체에 하나씩 값을 넣어, 구조체의 배열을 만든다
-	 * 이름이 run, argc가 2, 함수명이 run_task이고 인자가 (**argv) 인 구조체를 만든다. */
+	 * 이름이 run, argc가 2, 함수명이 run_task이고 인자가 (**argv) 인 구조체를 만든다. 
+	 * 파일 시스템이 있다면 파일 시스템과 관련된 명령어 이름들로 구성된 구조체도 만들어서 actions 배열에 추가*/
 	static const struct action actions[] = {
 		{"run", 2, run_task},
 #ifdef FILESYS

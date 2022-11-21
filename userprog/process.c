@@ -40,14 +40,20 @@ process_init (void) {
   Returns the initd's thread id, or TID_ERROR if the thread cannot be created.
   Notice that THIS SHOULD BE CALLED ONCE.
    
- * initd를 실행하는 쓰레드를 만드는, 딱 한번만 호출되어야 하는 함수. 
- * filename 이름의 쓰레드를 생성한 후 tid 또는 (쓰레드 생성에 실패할 경우) TID_ERROR를 반환 
- * dl 함수가 리턴되기 전에 새로 생성된 쓰레드가 스케줄되고, 심지어 exit 될 수도 있다. */
+ * initd를 실행하는 쓰레드를 만드는, init.c의 main 으로부터 딱 한번만 호출되어야 하는 함수. 
+ * filename 이름의 쓰레드를 생성한 후 tid 또는 (쓰레드 생성에 실패할 경우) TID_ERROR를 반환 -> 이 반환값은 exit()의 인자가 됨 
+ * 이 함수가 리턴되기 전에 새로 생성된 쓰레드가 스케줄되고, 심지어 exit 될 수도 있다. */
 tid_t
-process_create_initd (const char *file_name) { // 수행해야 할 task 이름이 file_name 이름으로 들어온다 
-	char *fn_copy;
-	tid_t tid;
+process_create_initd (const char *file_name) { 
+	/* 만약 명령어가 run 'args-multiple some arguments for you!'이라면
+	   인자로 들어온 file_name은 'args-multiple some arguments for you!' 의 주소 (''는 제외) */
 
+	//* 2주차 수정 : parsed_file_name, save_ptr 를 선언하고 우선 filename을 parsing 한 후, 
+	//* 기존에 file_name을 인수로 받는 부분들을 file_name 대신 parsed_file_name을 받도록 수정한다.
+	char *fn_copy;
+    char *save_ptr;
+	tid_t tid;
+	
 	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). 
 	 * fn_copy로 file_name 을 복사 */
 	fn_copy = palloc_get_page (0);
@@ -168,53 +174,181 @@ error:
 	thread_exit ();
 }
 
-/* Switch the current execution context to the f_name. Returns -1 on fail.
- * 현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 
- * 2주차 수정 : 인자로 받은 파일 이름을 공백을 기준으로 여러 단어로 나누어지게 만들어서, 
- * 첫 번째 단어는 프로그램 이름, 두 번째 단어부터는 인자를 나타내도록 한 후 프로그램을 실행해야 한다  */
+
+//* 수정 
+// char * argument_parsing (char *f_name, struct intr_frame * _if) {
+// 	int *argv[LOADER_ARGS_LEN / 2 + 1];
+// 	char *token , *save_ptr, *file_name;	
+// 	int argc , i, k;
+
+// 	file_name = strtok_r (f_name, " ", &save_ptr);
+// 	argv[0] = file_name; // 여기까지 ok 
+// 	// printf("argv[0]는 %s\n\n", argv[0]);
+
+// 	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+// 	argc = 1 ;
+// 	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+// 		argv[argc] = token; // token 문자열의 시작지점 
+// 		argc ++;
+// 		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
+// 	}
+	
+// 	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
+// 	for (i = argc-1; i>-1; i--) {
+// 		k = strlen(argv[i]);
+// 		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+
+// 		// memset(_if->rsp, '\0', k+1);
+// 		memcpy(_if->rsp, argv[i], k);
+// 		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+// 	}
+
+// 	// //* word-aligned 해야 함 
+// 	// if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+// 	// 	int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+// 	// 	_if->rsp -= pad ; // 포인터를 내리고
+// 	// 	memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
+// 	// }
+
+// 	// //* 스택에 널포인터 push 
+// 	// _if->rsp -= 8;
+// 	// memset(_if->rsp, 0,8);
+
+
+// 	// //* 스택에 역순으로 push 
+// 	// for (i = argc -1; i>-1; i--) {
+// 	// 	_if->rsp -=8 ; 
+// 	// 	memcpy(_if->rsp, &argv[i], 8) ; 
+// 	// }
+// 	// _if->R.rdi = argc ; 
+// 	// _if->R.rsi = _if->rsp ; 
+
+// 	// // //* 스택에 fake return address 인 0 push 
+// 	// _if->rsp -= 8;
+// 	// memset(_if->rsp, 0,8);
+// 	// // hex_dump(_if.rsp, _if.rsp, 100, true);
+
+// 	return file_name; 
+// } ; 
+
+// // Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
+//  * 2주차 수정 : argument parsing and passing  */
+// int
+// process_exec (void *f_name) { // 
+// 	char *file_name;	
+// 	bool success;
+
+// 	/* We cannot use the intr_frame in the thread structure.
+// 	 * This is because when current thread rescheduled,
+// 	 * it stores the execution information to the member. */
+// 	struct intr_frame _if;
+// 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
+// 	_if.cs = SEL_UCSEG;
+// 	_if.eflags = FLAG_IF | FLAG_MBS;
+
+// 	/* We first kill the current context */
+// 	process_cleanup ();
+
+// 	file_name = argument_parsing(f_name, &_if) ; 
+
+// 	/* And then load the binary */
+// 	success = load (file_name, &_if);
+
+// 	if (!success)
+// 		return -1;
+	
+// 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
+
+// 	/* Start switched process. */
+// 	/* If load failed, quit. */
+// 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
+// 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
+// }
+
+ //수정 (여기까지) 
+
 int
-process_exec (void *f_name) {
-	char *file_name = f_name;
+process_exec (void *f_name) { 
+	char *token , *save_ptr;
 	bool success;
+	int argc , i;
+ // int *argv[64]; // 64로 제한하는 게 맞는지는 모르겠다.
+int *argv[LOADER_ARGS_LEN / 2 + 1]; 
+	int k ; 
 
-	// * 여기서부터 수정해보고 있는 부분
-
-	/* 실행할 파일명과 전달할 인자로 파싱 */
-	char *raw = f_name ;
-    char *token, *save_ptr;
-	char *argv[strlen(f_name)];
-	int i = 0; 
-
-	for (token = strtok_r (raw, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-		argv[i] = token ;
-		i++;
-	}
-	// 이렇게 되면 parsing은 잘 될 수 있을 것 같은데, 이제 이 인자들을 프로세스 실행시 어떻게 넘겨줄지를 모르겠음 
-
-   //* 여기까지가 수정해보고 있는 부분 
-
-	/* We cannot use the intr_frame in the thread structure.
-	 * This is because when current thread rescheduled,
-	 * it stores the execution information to the member. */
+	/* We cannot use the intr_frame in the thread structure. This is because when current thread rescheduled,
+	   it stores the execution information to the member. */
 	struct intr_frame _if;
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
+
 	/* We first kill the current context */
 	process_cleanup ();
+
+	//* 인자 parsing 해서 스택에 push 
+	char * file_name = strtok_r (f_name, " ", &save_ptr);
+	argv[0] = file_name;
 
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
-	/* If load failed, quit. */
-	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
 	if (!success)
 		return -1;
 
+	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+	argc = 1 ;
+	printf("argv[0]는 %s\n\n", argv[0]);
+
+	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[argc] = token; // token 문자열의 시작지점 
+		argc ++;
+		printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
+	}
+	printf("argc는 %d \n", argc);
+	
+	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
+	for (i = argc-1; i>-1; i--) {
+		k = strlen(argv[i]);
+		_if.rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+		memset(_if.rsp, '\0', k+1);
+		memcpy(_if.rsp, argv[i], k);
+		argv[i]= (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+	}
+
+	//* word-aligned 해야 함 
+	if (_if.rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+		int pad = _if.rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+		_if.rsp -= pad ; // 포인터를 내리고
+		memset(_if.rsp, 0, pad); // 7만큼 0으로 채운다 
+	}
+
+	//* 스택에 널포인터 push 
+	_if.rsp -= 8;
+	memset(_if.rsp, 0,8);
+
+
+	//* 스택에 역순으로 push 
+	for (i = argc -1; i>-1; i--) {
+		_if.rsp -=8 ; 
+		memcpy(_if.rsp, &argv[i], 8) ; 
+	}
+
+	_if.R.rdi = argc ; 
+	_if.R.rsi = _if.rsp ; 
+
+	//* 스택에 fake return address 인 0 push 
+	_if.rsp -= 8;
+	memset(_if.rsp, 0,8);
+	// hex_dump(_if.rsp, _if.rsp, 100, true);
+
 	/* Start switched process. */
+	/* If load failed, quit. */
+	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
+
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
-	NOT_REACHED (); // 왜 있지...? 
+	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
 }
 
 
@@ -226,9 +360,12 @@ int
 process_wait (tid_t child_tid UNUSED) {
 	// 이 함수가 호출되는 init.c의 main 함수를 보면, process_wait() 다음 thread_exit으로 쓰레드를 종료시킴. 
 	// 따라서 이 함수가 child_tid가 종료되기를 기다리는 동안 무한루프를 써서 기다리게 한다. 
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
+	/* The pintos exit if process_wait (initd), 
+	  we recommend you to add infinite loop here before implementing the process_wait. */
+
+	while(1) {
+		// 아직 빠져나올 조건은 못 만들었지만 우선... 무한루프라도 돌린다.
+	}
 	return -1;
 }
 
@@ -437,11 +574,11 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 
 	/* Start address. */
-	if_->rip = ehdr.e_entry;
+	if_->rip = ehdr.e_entry; //rip = 프로그램카운터  rbp = 스택 bp, rsp = 스택포인터 
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	//* 여기서 파싱한 값들을 스택에 삽입 (rip를 하나씩 늘려나가면서 저장)
 	success = true;
 
 done:

@@ -52,7 +52,7 @@ struct intr_frame {
 	uint64_t error_code;
 /* Pushed by the CPU.
    These are the interrupted task's saved registers. */
-	uintptr_t rip;
+	uintptr_t rip; // 스택포인터를 가리키는 레지스터로 사용 
 	uint16_t cs;
 	uint16_t __pad5;
 	uint32_t __pad6;
