@@ -105,7 +105,8 @@ struct thread
 
 	int fd;							//* 2주차 쓰레드가 직접 연 파일의 식별자 저장
 	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
-	int exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
+	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */
 

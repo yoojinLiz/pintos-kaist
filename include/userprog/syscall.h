@@ -4,21 +4,51 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <syscall-nr.h>
+#include "include/threads/interrupt.h"
 
-struct values{
-    uint64_t syscall_number;
-    uint64_t rdi, rsi, rdx ,r10, r8, r9;
-};
+typedef int pid_t;
 
 struct syscall_func {
 	int syscall_number;
-	void (*function) (struct values *values);
+	void (*function) (struct intr_frame *f);
 };
-
 void syscall_init (void);
 
-void sysall_read();
-void syscall_write(struct values *values);
-void syscall_exit(struct values *values);
+// syscall function
+
+void syscall_halt(void);
+void syscall_exit(struct intr_frame *f);
+// fork func parameter : const char *thread_name
+pid_t syscall_fork (struct intr_frame *f);
+// exec func parameter : const char *cmd_line
+int syscall_exec (const char *cmd_line);
+// wait func parameter : pid_t pid
+int syscall_wait (pid_t pid);
+bool syscall_create (struct intr_frame *f);
+// remove func parameter : chonst char *file
+bool syscall_remove (struct intr_frame *f);
+// open func parameter : const char *file
+int syscall_open (struct intr_frame *f);
+// filesize func parameter : int fd
+int syscall_filesize (struct intr_frame *f);
+// read func parameter : int fd, void *buffer, unsigned size
+int syscall_read (struct intr_frame *f);
+// write func parameter : int fd, const void *buffer, unsigned size
+void syscall_write(struct intr_frame *f);
+// seek func parameter : int fd, unsigned position
+void syscall_seek (struct intr_frame *f);
+// tell func parameter : int fd
+unsigned syscall_tell (struct intr_frame *f);
+// close func larameter : int fd
+void syscall_close (struct intr_frame *f);
+
+// 공용 함수
+
+void syscall_abnormal_exit(short exit_code);
+// f의 값 출력 type 0 : d 출력, 1 : s 출력, 2 : 둘다 출력
+void print_values(struct intr_frame *f,int type);
+
+bool check_ptr_address(struct intr_frame *f);
+
 
 #endif /* userprog/syscall.h */
