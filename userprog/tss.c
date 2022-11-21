@@ -8,6 +8,11 @@
 #include "intrinsic.h"
 
 /* The Task-State Segment (TSS).
+ * Task-State Segment (TSS)는 x86 아키텍쳐의 문맥교환에 사용됩니다. 
+ * 하지만 x86-64에서 문맥교환(context switching = task switching)은 지원이 중단된 기능입니다. 
+ * 그래도 TSS는 여전히 ring switching 동안 스택 포인터를 찾아내기 위해 사용되고 있습니다.
+ * 이는 유저 프로세스가 인터럽트 핸들러에 진입할 때, 하드웨어는 tss에게 커널의 스택 포인터를 찾아달라고 요청한다는 의미입니다. 
+ * 앞으로의 어떤 프로젝트에서도 이 파일들을 수정할 필요는 없지만 어떻게 TSS가 동작하는지 궁금하다면 읽어보시면 됩니다
  *
  *  Instances of the TSS, an x86-64 specific structure, are used to
  *  define "tasks", a form of support for multitasking built right

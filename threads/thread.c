@@ -221,11 +221,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 	test_max_priority(); 
-	//* 만약에 통과 못하면 위에 test_max_priority 대신 아래 꺼 넣어보자 
-	// int curr_priority = thread_get_priority();
-    // if (priority > curr_priority){
-    //     thread_yield();         
-    // }
+
 	return tid;
 }
 

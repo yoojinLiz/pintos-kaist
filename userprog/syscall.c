@@ -1,3 +1,13 @@
+/*
+* 유저 프로세스가 일부 커널 기능에 접근하려고 할때마다 시스템 콜이 호출되는게시스템 콜 핸들러의 기본 구조입니다. 
+* 현재 상태에서는 이때 단지 메세지를 출력하고 유저 프로세스를 종료시키게 되어있습니다. 
+* (2주차) 이번 프로젝트의 part2에서 시스템 콜이 필요로 하는 다른 일을 수행하는 코드를 수행하게 될 겁니다.
+
+* 여러분이 구현하는 시스템 콜 핸들러는 시스템 콜 번호를 받아오고, 
+* 어떤 시스템 콜 인자라도 받아온 후 알맞은 액션을 취해야 합니다.
+
+*/
+
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
@@ -18,7 +28,9 @@ void syscall_handler (struct intr_frame *);
  * efficient path for requesting the system call, the `syscall` instruction.
  *
  * The syscall instruction works by reading the values from the the Model
- * Specific Register (MSR). For the details, see the manual. */
+ * Specific Register (MSR). For the details, see the manual. 
+ * 
+ * x86-64에서는 syscall 으로 시스템 콜을 요청하는 방법이 제공되고, syscall 인스트럭션은 MSR로 부터 값을 읽어옴으로써 동작한다 */
 
 #define MSR_STAR 0xc0000081         /* Segment selector msr */
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */

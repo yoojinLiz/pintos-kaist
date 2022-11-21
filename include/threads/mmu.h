@@ -1,3 +1,5 @@
+//* 가상 주소를 다루기 위한 함수들과 매크로를 정의 - 페이지 테이블 상에서의 활동을 제공
+
 #ifndef THREAD_MMU_H
 #define THREAD_MMU_H
 

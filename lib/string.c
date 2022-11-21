@@ -205,9 +205,8 @@ strstr (const char *haystack, const char *needle) {
    char s[] = "  String to  tokenize. ";
    char *token, *save_ptr;
 
-   for (token = strtok_r (s, " ", &save_ptr); token != NULL;
-   token = strtok_r (NULL, " ", &save_ptr))
-   printf ("'%s'\n", token);
+   for (token = strtok_r (s, " ", &save_ptr); token != NULL;    token = strtok_r (NULL, " ", &save_ptr))
+  	printf ("'%s'\n", token);
 
 outputs:
 
@@ -279,7 +278,9 @@ strlen (const char *string) {
 }
 
 /* If STRING is less than MAXLEN characters in length, returns
-   its actual length.  Otherwise, returns MAXLEN. */
+   its actual length.  Otherwise, returns MAXLEN. 
+* string 이 maxlen보다 작으면 string의 길이를, maxlen 보다 크거나 같으면 maxlen을 반환 
+*/
 size_t
 strnlen (const char *string, size_t maxlen) {
 	size_t length;
@@ -294,10 +295,9 @@ strnlen (const char *string, size_t maxlen) {
    terminator is always written to DST, unless SIZE is 0.
    Returns the length of SRC, not including the null terminator.
 
-   strlcpy() is not in the standard C library, but it is an
-   increasingly popular extension.  See
-http://www.courtesan.com/todd/papers/strlcpy.html for
-information on strlcpy(). */
+   strlcpy() is not in the standard C library, 
+   but it is an increasingly popular extension. 
+   See http://www.courtesan.com/todd/papers/strlcpy.html for information on strlcpy(). */
 size_t
 strlcpy (char *dst, const char *src, size_t size) {
 	size_t src_len;
