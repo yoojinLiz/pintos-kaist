@@ -1,2 +1,0 @@
-FAIL
-run: read "sample.txt" first 20 bytes: FAILED

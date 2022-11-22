@@ -96,8 +96,25 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+
+	//재민
+	struct thread *parent = thread_current();
+	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
+	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+	if(pid == TID_ERROR){
+		return TID_ERROR;
+	}
+
+	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
+	// struct thread *child = get_child(pid);
+	// sema_down(&child->fork_sema); 
+	// return pid;
+
+
+	// 변경 전
+	// return thread_create (name,
+	// 		PRI_DEFAULT, __do_fork, thread_current ());
 }
 
 #ifndef VM
@@ -133,6 +150,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 #endif
 
 /* A thread function that copies parent's execution context.
+ fork할 때 부모프로세스의 context(유전자)를 복사하는 함수
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
