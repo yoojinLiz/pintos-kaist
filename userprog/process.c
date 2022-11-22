@@ -52,6 +52,7 @@ process_create_initd (const char *file_name) {
 	//* 기존에 file_name을 인수로 받는 부분들을 file_name 대신 parsed_file_name을 받도록 수정한다.
 	char *fn_copy;
     char *save_ptr;
+    char *not_used;
 	tid_t tid;
 	
 	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). 
@@ -61,11 +62,9 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
 
+	file_name = strtok_r(file_name," ",&not_used); // 이제 filename은 인자를 제외한 파일 명만 갖고 있는 상태, fn_copy는 파일명 + 인자를 가진 상태 
+
 	/* Create a new thread to execute FILE_NAME. */
-	
-	//*yj!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 고쳐줘
-	char * trash;
-	file_name = strtok_r(file_name," ",&trash);
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy); 
 	// thread_create는 새로 생성하고 이를 block 시켜 ready_list에 넣어주고 선점 확인까지만 한다! 
 	// 이 쓰레드가 실행할 initd(fn_copy)는 process_init()로 프로세스를 초기화한 후, process_exec(f_name)로 프로세스를 실행한다. 

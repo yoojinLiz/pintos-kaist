@@ -128,14 +128,11 @@ syscall_handler (struct intr_frame *f) {
 // syscall function
 
 void syscall_halt(void){
-
-
-
+	power_off();	
 }
 
 
 void syscall_exit(struct intr_frame *f){
-
 	thread_current()->exit_code = f->R.rdi;
 	thread_exit();
 }
