@@ -184,9 +184,12 @@ bool syscall_create (struct intr_frame *f){
 
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
-
-
-	return 0;
+	bool success ; 
+	char* file = f->R.rdi ; // rdi : 파일 이름   
+	check_addr(file); 
+	success = filesys_remove(file);
+	f->R.rax = success; 
+	return success;
 }
 
 
