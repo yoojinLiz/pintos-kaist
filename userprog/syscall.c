@@ -128,14 +128,11 @@ syscall_handler (struct intr_frame *f) {
 // syscall function
 
 void syscall_halt(void){
-
-
-
+	power_off();	
 }
 
 
 void syscall_exit(struct intr_frame *f){
-
 	thread_current()->exit_code = f->R.rdi;
 	thread_exit();
 }
@@ -171,7 +168,8 @@ bool syscall_create (struct intr_frame *f){
 	// if(!check_ptr_address(f)){
 	// 	syscall_abnormal_exit(-1);
 	// }
-	
+	check_addr(f->R.rdi); // 유진 추가 
+
 	if(f->R.rdi == 0){
 		syscall_abnormal_exit(-1);
 	}
@@ -183,9 +181,12 @@ bool syscall_create (struct intr_frame *f){
 
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
-
-
-	return 0;
+	bool success ; 
+	char* file = f->R.rdi ; // rdi : 파일 이름   
+	check_addr(file); 
+	success = filesys_remove(file);
+	f->R.rax = success; 
+	return success;
 }
 
 
@@ -282,7 +283,6 @@ void print_values(struct intr_frame *f,int type){
 	printf("r9         %d\n",f->R.r9);
 }
 
-
 bool check_ptr_address(struct intr_frame *f){
 	bool success = false;
 	if (f->rsp < f->R.rdi && f->rsp + (1<<12) <f->R.rdi){
@@ -290,3 +290,17 @@ bool check_ptr_address(struct intr_frame *f){
 	}
 	return success;
 }
+
+void check_addr(void * addr) {
+	struct thread *t = thread_current();
+	if(is_kernel_vaddr(addr) || pml4_get_page(t->pml4, addr)== NULL ){
+	/* pml4_get_page(t->pml4, addr) : pml4_get_page()는 두번째 인자로 들어온 유저 가상 주소와 대응하는 물리주소를 찾는다. 
+	   해당 물리 주소와 연결된 커널 가상 주소를 반환하거나 만약 해당 물리 주소가 가상 주소와 매핑되지 않은 영역이면 NULL을 반환한다.
+	   따라서 따라서 NULL인지 체크함으로서 포인터가 가리키는 주소가 유저 영역 내에 있지만 자신의 페이지로 할당하지 않은 영역인지 확인해야 한다 */
+	   syscall_abnormal_exit(-1); 
+	}
+}
+
+
+
+
