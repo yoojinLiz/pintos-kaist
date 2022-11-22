@@ -165,9 +165,6 @@ int syscall_wait (pid_t pid){
 bool syscall_create (struct intr_frame *f){
 	bool success;
 
-	// if(!check_ptr_address(f)){
-	// 	syscall_abnormal_exit(-1);
-	// }
 	check_addr(f->R.rdi); // 유진 추가 
 
 	if(f->R.rdi == 0){
@@ -192,9 +189,17 @@ bool syscall_remove (struct intr_frame *f){
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
+	int fd;
+	check_addr(f->R.rdi);
+	
+	fd = filesys_open(f->R.rdi);
 
-
-	return 0;
+	if(fd == NULL){
+		f->R.rax = -1;
+	}else{
+		f->R.rax = fd;
+	}
+	return fd;
 }
 
 
