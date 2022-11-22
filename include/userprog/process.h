@@ -10,6 +10,7 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (struct thread *next);
 
-char * argument_parsing (char *f_name, struct intr_frame _if);
+char * argument_parsing (char *f_name, struct intr_frame *_if);
+struct thread *get_child_process (tid_t child_tid);
 
 #endif /* userprog/process.h */
