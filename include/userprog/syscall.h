@@ -22,7 +22,8 @@ void syscall_exit(struct intr_frame *f);
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f);
 // exec func parameter : const char *cmd_line
-int syscall_exec (const char *cmd_line);
+// int syscall_exec (const char *cmd_line);
+int syscall_exec (struct intr_frame *f);
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid);
 bool syscall_create (struct intr_frame *f);

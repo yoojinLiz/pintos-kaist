@@ -5,7 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
-//lock 구조체를 모르니까 선언해줘야 합니다 -bs-
+// lock 구조체를 모르니까 선언해줘야 합니다 -bs-
 #include "include/threads/synch.h"
 #include "filesys/file.h"
 #ifdef VM
@@ -105,6 +105,16 @@ struct thread
 
 	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
 
+	int fd;							//* 2주차 쓰레드가 직접 연 파일의 식별자 저장
+	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
+	short exit_code;				//* 쓰레드가 종료할떄 상태인 exit_code
+
+	tid_t parent_tid;				//* 2주차 수정 : 부모 프로레스(스레드)의 tid
+	struct list children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
+	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
+
+
+
 	int fd_count;
 	struct list fd_list;
 
@@ -175,7 +185,6 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-
-bool check_destory_thread(struct list_elem * destory_elem);
+bool check_destory_thread(struct list_elem *destory_elem);
 
 #endif /* threads/thread.h */

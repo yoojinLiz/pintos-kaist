@@ -65,7 +65,8 @@ void syscall_exit(struct intr_frame *f);
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f);
 // exec func parameter : const char *cmd_line
-int syscall_exec (const char *cmd_line);
+// int syscall_exec (const char *cmd_line);
+int syscall_exec (struct intr_frame *f);
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid);
 bool syscall_create (struct intr_frame *f);
@@ -151,17 +152,40 @@ pid_t syscall_fork (struct intr_frame *f){
 
 
 // exec func parameter : const char *cmd_line
-int syscall_exec (const char *cmd_line){
+// int syscall_exec (const char *cmd_line){
+int syscall_exec (struct intr_frame *f){
+	char *file_name = f->R.rdi;
+	char *fn_copy;
+	printf("파일 이름 %s\n", file_name);
 
+	/*
+	* 현재의 프로세스가 cmd_line에서 이름이 주어지는 실행가능한 프로세스로 변경됩니다. 
+	* 이때 주어진 인자들을 전달합니다. 성공적으로 진행된다면 어떤 것도 반환하지 않습니다. 
+	* 만약 프로그램이 이 프로세스를 로드하지 못하거나 다른 이유로 돌리지 못하게 되면 
+	* exit state -1을 반환하며 프로세스가 종료됩니다. 
+	* 이 함수는 exec 함수를 호출한 쓰레드의 이름은 바꾸지 않습니다. 
+	* file descriptor는 exec 함수 호출 시에 열린 상태로 있다는 것을 알아두세요.
+	*/
 
-	return 0;
+	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). */
+	check_addr(file_name);
+	fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL)
+	{
+		syscall_abnormal_exit(-1);
+		return -1;
+	}
+	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
+	if (process_exec (fn_copy) < 0) {
+		syscall_abnormal_exit(-1);
+	}
+    return 0;
+
 }
-
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){
-
-
+	process_wait(pid);
 	return 0;
 }
 
@@ -368,6 +392,7 @@ void check_addr(void * addr) {
 	   해당 물리 주소와 연결된 커널 가상 주소를 반환하거나 만약 해당 물리 주소가 가상 주소와 매핑되지 않은 영역이면 NULL을 반환한다.
 	   따라서 따라서 NULL인지 체크함으로서 포인터가 가리키는 주소가 유저 영역 내에 있지만 자신의 페이지로 할당하지 않은 영역인지 확인해야 한다 */
 	   syscall_abnormal_exit(-1); 
+
 	}
 }
 
@@ -392,6 +417,5 @@ find_elem_match_fd(int fd_value){
 	}
 	return NULL;
 }
-
 
 
