@@ -329,7 +329,7 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	if(curr->pml4 > KERN_BASE)
-		printf ("%s: exit(%d)\n", curr->name,0);
+		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
 	process_cleanup ();
 }
 

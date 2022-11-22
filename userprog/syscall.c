@@ -9,6 +9,7 @@
 */
 
 #include "userprog/syscall.h"
+
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -17,6 +18,9 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+
+#include "filesys/filesys.h"
+#include "lib/user/syscall.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -51,51 +55,238 @@ syscall_init (void) {
 
 /* The main system call interface */
 
-void syscall_exit(struct values *values);
-void syscall_write(struct values *values);
+// syscall function
 
+void syscall_halt(void);
+void syscall_exit(struct intr_frame *f);
+// fork func parameter : const char *thread_name
+pid_t syscall_fork (struct intr_frame *f);
+// exec func parameter : const char *cmd_line
+int syscall_exec (const char *cmd_line);
+// wait func parameter : pid_t pid
+int syscall_wait (pid_t pid);
+bool syscall_create (struct intr_frame *f);
+// remove func parameter : chonst char *file
+bool syscall_remove (struct intr_frame *f);
+// open func parameter : const char *file
+int syscall_open (struct intr_frame *f);
+// filesize func parameter : int fd
+int syscall_filesize (struct intr_frame *f);
+// read func parameter : int fd, void *buffer, unsigned size
+int syscall_read (struct intr_frame *f);
+// write func parameter : int fd, const void *buffer, unsigned size
+void syscall_write(struct intr_frame *f);
+// seek func parameter : int fd, unsigned position
+void syscall_seek (struct intr_frame *f);
+// tell func parameter : int fd
+unsigned syscall_tell (struct intr_frame *f);
+// close func larameter : int fd
+void syscall_close (struct intr_frame *f);
+
+// 공용 함수
+
+void syscall_abnormal_exit(short exit_code);
+// f의 값 출력 type 0 : d 출력, 1 : s 출력, 2 : 둘다 출력
+void print_values(struct intr_frame *f,int type);
+
+bool check_ptr_address(struct intr_frame *f);
 
 struct syscall_func syscall_func[] = {
-	{SYS_HALT,syscall_exit},
+	{SYS_HALT,syscall_halt},
 	{SYS_EXIT,syscall_exit},
-	{SYS_FORK,syscall_exit},
-	{SYS_EXEC,syscall_exit},
-	{SYS_WAIT,syscall_exit},
-	{SYS_CREATE,syscall_exit},
-	{SYS_REMOVE,syscall_exit},
-	{SYS_OPEN,syscall_exit},
-	{SYS_FILESIZE,syscall_exit},
-	{SYS_READ,syscall_exit},
+	{SYS_FORK,syscall_fork},
+	{SYS_EXEC,syscall_exec},
+	{SYS_WAIT,syscall_wait},
+	{SYS_CREATE,syscall_create},
+	{SYS_REMOVE,syscall_remove},
+	{SYS_OPEN,syscall_open},
+	{SYS_FILESIZE,syscall_filesize},
+	{SYS_READ,syscall_read},
 	{SYS_WRITE,syscall_write},
-	{SYS_SEEK,syscall_exit},
-	{SYS_WRITE,syscall_exit},
-	{SYS_TELL,syscall_exit},
-	{SYS_CLOSE,syscall_exit},
+	{SYS_SEEK,syscall_seek},
+	{SYS_TELL,syscall_tell},
+	{SYS_CLOSE,syscall_close},
 };
+
 
 
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f) {
-
 	// TODO: Your implementation goes here.
-	struct values values;
-	values.syscall_number = f->R.rax;
-	values.rdi = f->R.rdi;
-	values.rsi = f->R.rsi;
-	values.rdx = f->R.rdx;
-	values.r10 = f->R.r10;
-	values.r8 = f->R.r8;
-	values.r9 = f->R.r9;
 
-	struct syscall_func call = syscall_func[values.syscall_number];
-	call.function (&values);
+	// 전체 시스템 콜에 영향을 주는 곳입니다. 최대한 작성을 지양 해주세요
+
+	// print_values(f,0);
+
+	struct syscall_func call = syscall_func[f->R.rax];
+	call.function (f);
+
+	return;
+}
+
+// syscall function
+
+void syscall_halt(void){
+
+
+
 }
 
 
-void syscall_write(struct values *values){
-	printf("%s",values->rsi);
-}
-void syscall_exit(struct values *values){
+void syscall_exit(struct intr_frame *f){
+
+	thread_current()->exit_code = f->R.rdi;
 	thread_exit();
+}
+
+
+// fork func parameter : const char *thread_name
+pid_t syscall_fork (struct intr_frame *f){
+
+
+	return NULL;
+}
+
+
+// exec func parameter : const char *cmd_line
+int syscall_exec (const char *cmd_line){
+
+
+	return 0;
+}
+
+
+// wait func parameter : pid_t pid
+int syscall_wait (pid_t pid){
+
+
+	return 0;
+}
+
+
+bool syscall_create (struct intr_frame *f){
+	bool success;
+
+	// if(!check_ptr_address(f)){
+	// 	syscall_abnormal_exit(-1);
+	// }
+	
+	if(f->R.rdi == 0){
+		syscall_abnormal_exit(-1);
+	}
+	success = filesys_create(f->R.rdi,f->R.rsi);
+	f->R.rax = success;
+	return success;
+}
+
+
+// remove func parameter : chonst char *file
+bool syscall_remove (struct intr_frame *f){
+
+
+	return 0;
+}
+
+
+// open func parameter : const char *file
+int syscall_open (struct intr_frame *f){
+
+
+	return 0;
+}
+
+
+// filesize func parameter : int fd
+int syscall_filesize (struct intr_frame *f){
+
+
+	return 0;
+}
+
+
+// read func parameter : int fd, void *buffer, unsigned size
+int syscall_read (struct intr_frame *f){
+
+
+	return 0;
+}
+
+
+// write func parameter : int fd, const void *buffer, unsigned size
+void syscall_write(struct intr_frame *f){
+	int fd = f->R.rdi;
+	char *buf = f->R.rsi;
+	int size = f->R.rdx;
+	if(fd == 1){
+		putbuf(buf,size);
+	}	
+}
+
+
+// seek func parameter : int fd, unsigned position
+void syscall_seek (struct intr_frame *f){
+
+
+
+}
+
+
+// tell func parameter : int fd
+unsigned syscall_tell (struct intr_frame *f){
+
+
+	return 0;
+}
+
+
+// close func larameter : int fd
+void syscall_close (struct intr_frame *f){
+
+
+
+}
+
+
+// 공용 함수
+
+void syscall_abnormal_exit(short exit_code){
+	thread_current()->exit_code = exit_code;
+	thread_exit();
+}
+
+// f의 값 출력 type 0 : d 출력, 1 : s 출력, 2 : 둘다 출력
+void print_values(struct intr_frame *f,int type){
+
+	printf("call_num   %d\n",f->R.rax);
+	printf("rdi        %d\n",f->R.rdi);
+	if(type == 0){
+		printf("rsi        %d\n",f->R.rsi);
+	}else if(type == 1){
+		if(f->R.rsi == 0){
+			printf("rsi        %s\n",f->R.rsi);
+		}else{
+			printf("rsi        %s",f->R.rsi);
+		}
+	}else if(type == 2){
+		printf("rsi        %d\n",f->R.rsi);
+		if(f->R.rsi == 0){
+			printf("rsi        %s\n",f->R.rsi);
+		}else{
+			printf("rsi        %s",f->R.rsi);
+		}
+	}
+	printf("rdx        %d\n",f->R.rdx);
+	printf("r10        %d\n",f->R.r10);
+	printf("r8         %d\n",f->R.r8);
+	printf("r9         %d\n",f->R.r9);
+}
+
+
+bool check_ptr_address(struct intr_frame *f){
+	bool success = false;
+	if (f->rsp < f->R.rdi && f->rsp + (1<<12) <f->R.rdi){
+		success = true;
+	}
+	return success;
 }
