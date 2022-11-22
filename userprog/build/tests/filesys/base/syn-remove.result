@@ -1,0 +1,2 @@
+FAIL
+run: 78 bytes read starting at offset 0 in "deleteme" differ from expected: FAILED
