@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "include/threads/interrupt.h"
+#include "lib/kernel/list.h"
 
 typedef int pid_t;
 
@@ -51,5 +52,6 @@ void print_values(struct intr_frame *f,int type);
 bool check_ptr_address(struct intr_frame *f);
 
 void check_addr(void * addr); // 할당받는 유저 메모리 영역인지 확인 후, 아니라면 exit(-1)을 실행하는 함수입니다. (유진 추가)
+struct list_elem* find_elem_match_fd(int fd_value);
 
 #endif /* userprog/syscall.h */

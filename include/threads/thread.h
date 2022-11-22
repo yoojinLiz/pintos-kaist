@@ -103,9 +103,10 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-	int fd;							//* 2주차 쓰레드가 직접 연 파일의 식별자 저장
-	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
 	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
+
+	int fd_count;
+	struct list fd_list;
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */

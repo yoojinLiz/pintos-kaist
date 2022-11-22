@@ -15,12 +15,15 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/malloc.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 
 #include "filesys/filesys.h"
 #include "lib/user/syscall.h"
+#include "../include/filesys/file.h"
+#include "filesys/inode.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -91,6 +94,8 @@ void print_values(struct intr_frame *f,int type);
 
 bool check_ptr_address(struct intr_frame *f);
 
+struct list_elem* find_elem_match_fd(int fd_value);
+
 struct syscall_func syscall_func[] = {
 	{SYS_HALT,syscall_halt},
 	{SYS_EXIT,syscall_exit},
@@ -115,14 +120,13 @@ void
 syscall_handler (struct intr_frame *f) {
 	// TODO: Your implementation goes here.
 
-	// 전체 시스템 콜에 영향을 주는 곳입니다. 최대한 작성을 지양 해주세요
+	// !전체 시스템 콜에 영향을 주는 곳입니다. 최대한 작성을 지양 해주세요
 
 	// print_values(f,0);
 
 	struct syscall_func call = syscall_func[f->R.rax];
 	call.function (f);
 
-	return;
 }
 
 // syscall function
@@ -189,33 +193,80 @@ bool syscall_remove (struct intr_frame *f){
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
-	int fd;
+
+	struct file *open_file;
+	struct list * fd_list;
+	fd_list = &thread_current()->fd_list;
 	check_addr(f->R.rdi);
 	
-	fd = filesys_open(f->R.rdi);
+	open_file = filesys_open(f->R.rdi);
 
-	if(fd == NULL){
+	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
+
+	if(open_file == NULL){
 		f->R.rax = -1;
-	}else{
-		f->R.rax = fd;
+		return -1;
 	}
-	return fd;
+
+	fd->value = thread_current()->fd_count + 1;
+	fd->file = open_file;
+	list_insert_ordered(fd_list,&fd->elem,cmp_fd,NULL);
+	thread_current()->fd_count +=1;
+	f->R.rax = fd->value;
+	return fd->value;
 }
 
 
 // filesize func parameter : int fd
 int syscall_filesize (struct intr_frame *f){
 
+	int fd_value = f->R.rdi;
+	struct list_elem * find_elem;
+	struct fd *find_fd;
 
-	return 0;
+	find_elem = find_elem_match_fd(fd_value);
+	if(find_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+	find_fd = list_entry(find_elem, struct fd, elem);
+	struct inode * find_inode = file_get_inode(find_fd->file);
+	
+	int size = inode_length(find_inode);
+	f->R.rax = size;
+	return size;
 }
 
 
 // read func parameter : int fd, void *buffer, unsigned size
 int syscall_read (struct intr_frame *f){
 
+	check_addr(f->R.rsi);
+	int fd_value, size, check_size;
+	fd_value = f->R.rdi;
+	char* buf = f->R.rsi;
+	size = f->R.rdx;
 
-	return 0;
+	int return_value;
+	struct list_elem * read_elem;
+	struct fd * read_fd;
+
+	read_elem = find_elem_match_fd(fd_value);
+
+	if(read_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+
+	read_fd = list_entry(read_elem, struct fd, elem);
+	if(read_fd == NULL){
+		return;
+	}
+
+	return_value = file_read(read_fd->file,buf,size);
+	check_size = return_value;
+	f->R.rax = check_size;
+	return check_size;
 }
 
 
@@ -249,8 +300,22 @@ unsigned syscall_tell (struct intr_frame *f){
 // close func larameter : int fd
 void syscall_close (struct intr_frame *f){
 
+	int fd_value = f->R.rdi;
+	struct list *fd_list = &thread_current()->fd_list;
+	struct list_elem * find_elem;
 
 
+	find_elem = find_elem_match_fd(fd_value);
+	if(find_elem == NULL){
+		syscall_abnormal_exit(-1);
+	}
+
+	fd_list = list_entry(find_elem, struct fd, elem);
+	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+
+	file_close(find_fd->file);
+	list_remove(find_elem);
+	free(find_fd);
 }
 
 
@@ -306,6 +371,27 @@ void check_addr(void * addr) {
 	}
 }
 
+struct list_elem*
+find_elem_match_fd(int fd_value){
+
+	struct list *fd_list = &thread_current()->fd_list;
+	struct list_elem * cur;
+
+	if(list_empty(fd_list)){
+		return NULL;
+	}
+
+	cur = list_begin(fd_list);
+	while (cur != list_end(fd_list))
+	{
+		struct fd *find_fd = list_entry(cur, struct fd, elem);
+		if(find_fd->value == fd_value){
+			return cur;
+		}
+		cur = list_next(cur);
+	}
+	return NULL;
+}
 
 
 

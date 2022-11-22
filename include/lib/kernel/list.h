@@ -162,5 +162,5 @@ struct list_elem *list_min (struct list *, list_less_func *, void *aux);
 
 // custom
 bool check_tid_in_list(struct list *find_list,int find_tid);
-
+int get_count_list(struct list *find_list);
 #endif /* lib/kernel/list.h */

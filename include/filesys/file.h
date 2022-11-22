@@ -2,8 +2,17 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
+#include "lib/kernel/list.h"
+#include <stdbool.h>
 
 struct inode;
+struct fd
+{
+    int value;
+    struct file *file;
+    struct list_elem elem;
+};
+
 
 /* Opening and closing files. */
 struct file *file_open (struct inode *);
@@ -26,5 +35,8 @@ void file_allow_write (struct file *);
 void file_seek (struct file *, off_t);
 off_t file_tell (struct file *);
 off_t file_length (struct file *);
+
+
+bool cmp_fd (struct list_elem *a, struct list_elem *b, void *aux);
 
 #endif /* filesys/file.h */

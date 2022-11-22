@@ -444,7 +444,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	//* 1주차 추가 (priority donation을 위한 코드들)
 	t->init_priority = priority;
 	t->wait_on_lock = NULL;
-	list_init(&t->donations); 
+	list_init(&t->donations);
+
+	//* 2주차 추가
+	t->fd_count = 1;
+	list_init(&t->fd_list);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
