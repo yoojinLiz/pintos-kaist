@@ -712,7 +712,12 @@ int64_t get_next_tick_to_awake(void)
 }
 
 void test_max_priority(void)
-{
+{	
+	// * idle thread 일때 양도 금지.
+	if(thread_current() == idle_thread){
+		return;
+	}
+	
 	struct thread *highest_thread;
 	if (!(list_empty(&ready_list)))
 	{
