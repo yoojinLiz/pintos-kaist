@@ -452,9 +452,14 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->wait_on_lock = NULL;
 	list_init(&t->donations);
 
-	//* 2주차 추가 
+
+	//* 2주차 추가
+	t->fd_count = 1;
+	list_init(&t->fd_list);
+
 	list_init(&t->children);
 	
+
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

@@ -510,3 +510,20 @@ check_tid_in_list(struct list *find_list,int find_tid){
 	}
 	return false;
 }
+
+int get_count_list(struct list *find_list){
+	if (list_empty(find_list))
+	{
+		return 0;
+	}
+
+	int count = 1;
+	struct list_elem * cur = list_begin(find_list);
+
+	while (cur != list_end(find_list))
+	{
+		count+=1;
+		list_next(cur);
+	}
+	return count;
+}
