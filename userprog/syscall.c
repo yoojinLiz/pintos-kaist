@@ -185,7 +185,7 @@ int syscall_exec (struct intr_frame *f){
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){
-	process_wait(pid);
+	// process_wait(pid);
 	return 0;
 }
 
@@ -296,12 +296,35 @@ int syscall_read (struct intr_frame *f){
 
 // write func parameter : int fd, const void *buffer, unsigned size
 void syscall_write(struct intr_frame *f){
-	int fd = f->R.rdi;
+	check_addr(f->R.rsi);
+	int fd_value = f->R.rdi;
 	char *buf = f->R.rsi;
 	int size = f->R.rdx;
-	if(fd == 1){
+	if(fd_value == 1){
 		putbuf(buf,size);
-	}	
+		return;
+	}
+
+	int return_value;
+	struct list_elem * read_elem;
+	struct fd * read_fd;
+
+	read_elem = find_elem_match_fd(fd_value);
+
+	if(read_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+
+	read_fd = list_entry(read_elem, struct fd, elem);
+	if(read_fd == NULL){
+		return;
+	}
+
+	return_value = file_write(read_fd->file,buf,size);
+	f->R.rax = return_value;
+	return return_value;
+
 }
 
 
