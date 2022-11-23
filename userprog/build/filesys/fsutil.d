@@ -6,6 +6,6 @@ filesys/fsutil.o: ../../filesys/fsutil.c ../../include/filesys/fsutil.h \
  ../../include/lib/string.h ../../include/filesys/directory.h \
  ../../include/devices/disk.h ../../include/lib/inttypes.h \
  ../../include/filesys/file.h ../../include/filesys/off_t.h \
- ../../include/filesys/filesys.h ../../include/threads/malloc.h \
- ../../include/threads/palloc.h ../../include/threads/vaddr.h \
- ../../include/threads/loader.h
+ ../../include/lib/kernel/list.h ../../include/filesys/filesys.h \
+ ../../include/threads/malloc.h ../../include/threads/palloc.h \
+ ../../include/threads/vaddr.h ../../include/threads/loader.h

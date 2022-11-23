@@ -7,8 +7,9 @@ threads/interrupt.o: ../../threads/interrupt.c \
  ../../include/threads/intr-stubs.h ../../include/threads/io.h \
  ../../include/threads/thread.h ../../include/lib/kernel/list.h \
  ../../include/threads/synch.h ../../include/filesys/file.h \
- ../../include/filesys/off_t.h ../../include/threads/mmu.h \
- ../../include/threads/pte.h ../../include/threads/vaddr.h \
- ../../include/threads/loader.h ../../include/devices/timer.h \
- ../../include/lib/round.h ../../include/intrinsic.h \
- ../../include/threads/mmu.h ../../include/userprog/gdt.h
+ ../../include/filesys/off_t.h ../../include/lib/kernel/list.h \
+ ../../include/threads/mmu.h ../../include/threads/pte.h \
+ ../../include/threads/vaddr.h ../../include/threads/loader.h \
+ ../../include/devices/timer.h ../../include/lib/round.h \
+ ../../include/intrinsic.h ../../include/threads/mmu.h \
+ ../../include/userprog/gdt.h

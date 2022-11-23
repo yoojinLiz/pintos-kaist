@@ -5,4 +5,5 @@ threads/synch.o: ../../threads/synch.c ../../include/threads/synch.h \
  ../../include/lib/stdarg.h ../../include/lib/kernel/stdio.h \
  ../../include/lib/string.h ../../include/threads/interrupt.h \
  ../../include/threads/thread.h ../../include/threads/synch.h \
- ../../include/filesys/file.h ../../include/filesys/off_t.h
+ ../../include/filesys/file.h ../../include/filesys/off_t.h \
+ ../../include/lib/kernel/list.h

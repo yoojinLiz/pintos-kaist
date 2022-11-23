@@ -1,0 +1,37 @@
+Kernel command line: -q -f put exec-missing run exec-missing
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  78,540,800 loops/s.
+hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 103 sector (51 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+Formatting file system...done.
+Boot complete.
+Putting 'exec-missing' into the file system...
+Executing 'exec-missing':
+(exec-missing) begin
+파일 이름 no-such-file
+Page fault at 0x423f000: not present error writing page in kernel context.
+Interrupt 0x0e (#PF Page-Fault Exception) at rip=8004216e67
+ cr2=000000000423f000 error=               2
+rax 000000000423f000 rbx 0000000000000000 rcx 000000000423f001 rdx 000000000000006e
+rsp 0000008004240e60 rbp 0000008004240e90 rsi 0000000000404320 rdi 000000000423f000
+rip 0000008004216e67 r8 0000008004240e5c  r9 0000000000000000 r10 0000000000000000
+r11 0000000000000212 r12 000000800421cc3c r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000206
+es: 001b ds: 001b cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:99 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217ebe 0x800421c963 0x800421cb06 0x8004208f34 0x8004209352 0x80042178f1 0x800421cd8a 0x800421cc7d 0x800421cb7b 0x400102 0x40017d 0x400c1e.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 68 ticks
+Thread: 30 idle ticks, 33 kernel ticks, 5 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 80 reads, 234 writes
+hd1:0: 103 reads, 0 writes
+Console: 1811 characters output
+Key

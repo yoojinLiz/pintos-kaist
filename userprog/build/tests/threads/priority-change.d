@@ -6,4 +6,4 @@ tests/threads/priority-change.o: ../../tests/threads/priority-change.c \
  ../../include/threads/init.h ../../include/threads/thread.h \
  ../../include/lib/kernel/list.h ../../include/threads/interrupt.h \
  ../../include/threads/synch.h ../../include/filesys/file.h \
- ../../include/filesys/off_t.h
+ ../../include/filesys/off_t.h ../../include/lib/kernel/list.h

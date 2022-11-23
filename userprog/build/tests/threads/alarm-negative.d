@@ -7,4 +7,5 @@ tests/threads/alarm-negative.o: ../../tests/threads/alarm-negative.c \
  ../../include/lib/kernel/list.h ../../include/threads/thread.h \
  ../../include/threads/interrupt.h ../../include/threads/synch.h \
  ../../include/filesys/file.h ../../include/filesys/off_t.h \
- ../../include/devices/timer.h ../../include/lib/round.h
+ ../../include/lib/kernel/list.h ../../include/devices/timer.h \
+ ../../include/lib/round.h
