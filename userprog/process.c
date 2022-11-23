@@ -44,7 +44,7 @@ process_init (void) {
  * filename 이름의 쓰레드를 생성한 후 tid 또는 (쓰레드 생성에 실패할 경우) TID_ERROR를 반환 -> 이 반환값은 exit()의 인자가 됨 
  * 이 함수가 리턴되기 전에 새로 생성된 쓰레드가 스케줄되고, 심지어 exit 될 수도 있다. */
 tid_t
-process_create_initd (const char *file_name) { 
+ process_create_initd (const char *file_name) { 
 	/* 만약 명령어가 run 'args-multiple some arguments for you!'이라면
 	   인자로 들어온 file_name은 'args-multiple some arguments for you!' 의 주소 (''는 제외) */
 
@@ -52,8 +52,8 @@ process_create_initd (const char *file_name) {
 	//* 기존에 file_name을 인수로 받는 부분들을 file_name 대신 parsed_file_name을 받도록 수정한다.
 	char *fn_copy;
     char *save_ptr;
+    char *not_used;
 	tid_t tid;
-	
 	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). 
 	 * fn_copy로 file_name 을 복사 */
 	fn_copy = palloc_get_page (0);
@@ -61,11 +61,9 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
 
+	file_name = strtok_r(file_name," ",&not_used); // 이제 filename은 인자를 제외한 파일 명만 갖고 있는 상태, fn_copy는 파일명 + 인자를 가진 상태 
+
 	/* Create a new thread to execute FILE_NAME. */
-	
-	//*yj!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 고쳐줘
-	char * trash;
-	file_name = strtok_r(file_name," ",&trash);
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy); 
 	// thread_create는 새로 생성하고 이를 block 시켜 ready_list에 넣어주고 선점 확인까지만 한다! 
 	// 이 쓰레드가 실행할 initd(fn_copy)는 process_init()로 프로세스를 초기화한 후, process_exec(f_name)로 프로세스를 실행한다. 
@@ -93,28 +91,29 @@ initd (void *f_name) {
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-tid_t
+// ! &parent 에서 parent_if 참조가 안되고 있습니다. 오류 확인하고 pull_request 해주세용! :)
+// tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
-	/* Clone current thread to new thread.*/
+// 	/* Clone current thread to new thread.*/
 
-	//재민
+// 	//재민
 	struct thread *parent = thread_current();
-	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
-	if(pid == TID_ERROR){
-		return TID_ERROR;
-	}
+// 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
+// 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
+// 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+// 	if(pid == TID_ERROR){
+// 		return TID_ERROR;
+// 	}
 
-	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-	// struct thread *child = get_child(pid);
-	// sema_down(&child->fork_sema); 
-	// return pid;
+// 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
+// 	// struct thread *child = get_child(pid);
+// 	// sema_down(&child->fork_sema); 
+// 	// return pid;
 
 
-	// 변경 전
-	// return thread_create (name,
-	// 		PRI_DEFAULT, __do_fork, thread_current ());
+// 	// 변경 전
+// 	// return thread_create (name,
+// 	// 		PRI_DEFAULT, __do_fork, thread_current ());
 }
 
 #ifndef VM
@@ -197,8 +196,9 @@ error:
 }
 
 
-// Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
-//  * 2주차 수정 : argument parsing and passing  */
+
+// //Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
+// // * 2주차 수정 : argument parsing and passing  */
 // int
 // process_exec (void *f_name) { // 
 // 	char *file_name;	
@@ -214,9 +214,8 @@ error:
 
 // 	/* We first kill the current context */
 // 	process_cleanup ();
-// 	printf("==========%p\n",_if.rsp);
-// 	printf("rip = %p\n",_if.rip);
-// 	file_name = argument_parsing(f_name, _if); 
+
+// 	file_name = argument_parsing(f_name, &_if); 
 
 // 	/* And then load the binary */
 // 	success = load (file_name, &_if);
@@ -232,12 +231,10 @@ error:
 // 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
 // }
 
- //수정 (여기까지) 
 
 int
 process_exec (void *f_name) { 
 	bool success;
-	
 	/* We cannot use the intr_frame in the thread structure. This is because when current thread rescheduled,
 	   it stores the execution information to the member. */
 	struct intr_frame _if;
@@ -251,7 +248,6 @@ process_exec (void *f_name) {
 
 	char *token , *save_ptr;
 	int argc , i;
- 	// int *argv[64]; // 64로 제한하는 게 맞는지는 모르겠다.
 	int *argv[LOADER_ARGS_LEN / 2 + 1]; 
 	int k ; 
 	
@@ -546,9 +542,6 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Start address. */
 	if_->rip = ehdr.e_entry; //rip = 프로그램카운터  rbp = 스택 bp, rsp = 스택포인터 
 
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-	//* 여기서 파싱한 값들을 스택에 삽입 (rip를 하나씩 늘려나가면서 저장)
 	success = true;
 
 done:
@@ -773,57 +766,75 @@ setup_stack (struct intr_frame *if_) {
 
 
 // * 수정 나중에 yj가 수정하기로함 ^^
-char * argument_parsing (char *f_name, struct intr_frame _if) {
-	int *argv[LOADER_ARGS_LEN / 2 + 1];
-	char *token , *save_ptr, *file_name;	
-	int argc , i, k;
-	printf("rip = %p\n",_if.rip);
-	file_name = strtok_r (f_name, " ", &save_ptr);
-	argv[0] = file_name; // 여기까지 ok 
-	// printf("argv[0]는 %s\n\n", argv[0]);
+// char * argument_parsing (char *f_name, struct intr_frame *_if) {
+// 	int *argv[LOADER_ARGS_LEN / 2 + 1];
+// 	char *token , *save_ptr, *file_name;	
+// 	int argc , i, k;
+// 	file_name = strtok_r (f_name, " ", &save_ptr);
+// 	argv[0] = file_name; 
+// 	// printf("argv[0]는 %s\n\n", argv[0]);
 
-	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
-	argc = 1 ;
-	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-		argv[argc] = token; // token 문자열의 시작지점 
-		argc ++;
-		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
-	}
+// 	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+// 	argc = 1 ;
+// 	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+// 		argv[argc] = token; // token 문자열의 시작지점 
+// 		argc ++;
+// 		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
+// 	}
 	
-	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
-	for (i = argc-1; i>-1; i--) {
-		k = strlen(argv[i]);
-		_if.rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
-		memset(_if.rsp, '\0', k+1);
-		memcpy(_if.rsp, argv[i], k);
-		argv[i]= (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+// 	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
+// 	for (i = argc-1; i>-1; i--) {
+// 		k = strlen(argv[i]);
+// 		printf("rsp 주소는 %p \n", _if->rsp);
+// 		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+
+// 		memset(_if->rsp, '\0', k+1); // 
+// 		memcpy(_if->rsp, argv[i], k);
+// 		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+// 	}
+
+// 	//* word-aligned 해야 함 
+// 	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+// 		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+// 		_if->rsp -= pad ; // 포인터를 내리고
+// 		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
+// 	}
+
+// 	//* 스택에 널포인터 push 
+// 	_if->rsp -= 8;
+// 	memset(_if->rsp, 0,8);
+
+
+// 	//* 스택에 역순으로 push 
+// 	for (i = argc -1; i>-1; i--) {
+// 		_if->rsp -=8 ; 
+// 		memcpy(_if->rsp, &argv[i], 8) ; 
+// 	}
+// 	_if->R.rdi = argc ; 
+// 	_if->R.rsi = _if->rsp ; 
+
+// 	// //* 스택에 fake return address 인 0 push 
+// 	_if->rsp -= 8;
+// 	memset(_if->rsp, 0,8);
+// 	hex_dump(_if->rsp, _if->rsp, 100, true);
+
+// 	return file_name; 
+// }  
+
+// 자식 스레드 tid를 가지고 현재 스레드의 children 리스트 검색 - 찾으면 해당 스레드 반환 
+struct thread *get_child_process (tid_t child_tid) {
+	struct list curr = thread_current()->children; 
+	struct list_elem *child ; 
+	struct thread * child_thread;
+
+	if (list_empty(&curr)) {
+		return -1; 
 	}
-
-	//* word-aligned 해야 함 
-	if (_if.rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-		int pad = _if.rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-		_if.rsp -= pad ; // 포인터를 내리고
-		memset(_if.rsp, 0, pad); // 7만큼 0으로 채운다 
+	for (child =list_begin(&curr); child!= list_end(&curr); child = list_next(child)) {
+		child_thread = list_entry (child, struct thread, elem);
+		if(child_thread->tid == child_tid){
+			return child_thread;
+		}
 	}
-
-	//* 스택에 널포인터 push 
-	_if.rsp -= 8;
-	memset(_if.rsp, 0,8);
-
-
-	//* 스택에 역순으로 push 
-	for (i = argc -1; i>-1; i--) {
-		_if.rsp -=8 ; 
-		memcpy(_if.rsp, &argv[i], 8) ; 
+	return NULL; 
 	}
-	_if.R.rdi = argc ; 
-	_if.R.rsi = _if.rsp ; 
-
-	// //* 스택에 fake return address 인 0 push 
-	_if.rsp -= 8;
-	memset(_if.rsp, 0,8);
-	// hex_dump(_if.rsp, _if.rsp, 100, true);
-
-	return file_name; 
-}  
-
