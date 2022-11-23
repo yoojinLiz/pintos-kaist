@@ -25,6 +25,10 @@
 #include "../include/filesys/file.h"
 #include "filesys/inode.h"
 
+#include "userprog/process.h"
+
+
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
@@ -145,9 +149,10 @@ void syscall_exit(struct intr_frame *f){
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
+	char *file_name = f->R.rdi;
+	// print_values(f,1);
+	process_fork(file_name, f);
 
-
-	return NULL;
 }
 
 
