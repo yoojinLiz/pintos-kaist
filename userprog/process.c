@@ -27,7 +27,6 @@
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
-// static void __do_fork (void *);
 
 /* General process initializer for initd and other process. */
 static void
@@ -93,17 +92,11 @@ initd (void *f_name) {
  * TID_ERROR if the thread cannot be created. */
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 // 	/* Clone current thread to new thread.*/
-	printf("========================\n");
 	struct thread *parent = thread_current();
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	
 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-	// parent_if에 rsp 메모리 복사 확인
-	// printf("rsp 포인터 확인: %p\n", if_->rsp);
-	// printf("rsp 포인터 확인: %p\n", parent->parent_if.rsp);
-	// printf("여기 ok?\n");
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
-	// printf("pid생김?%d\n", pid); ->ㅇㅇ 생김
 	
 	if(pid == TID_ERROR){
 		return TID_ERROR;
@@ -111,8 +104,6 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 
 // 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
 	struct thread *child = get_child_process(pid);
-	printf("child있음?%d\n", child->tid);
-	printf("여기 ok?\n");
 	sema_down(&child->fork_sema); 
 	return pid;
 
