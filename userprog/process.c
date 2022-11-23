@@ -98,18 +98,17 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 
 // 	//재민
 	struct thread *parent = thread_current();
-// 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-// 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-// 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
-// 	if(pid == TID_ERROR){
-// 		return TID_ERROR;
-// 	}
+	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
+	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+	if(pid == TID_ERROR){
+		return TID_ERROR;
+	}
 
 // 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-// 	// struct thread *child = get_child(pid);
-// 	// sema_down(&child->fork_sema); 
-// 	// return pid;
-
+	struct thread *child = get_child(pid);
+	sema_down(&child->fork_sema); 
+	return pid;
 
 // 	// 변경 전
 // 	// return thread_create (name,
