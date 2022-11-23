@@ -57,7 +57,7 @@ exception_init (void) {
 			"#XF SIMD Floating-Point Exception");
 
 	/* Most exceptions can be handled with interrupts turned on.
-	   We need to disable interrupts for page faults because the
+	   We need to disable interrupts for page faults because the 
 	   fault address is stored in CR2 and needs to be preserved. */
 	intr_register_int (14, 0, INTR_OFF, page_fault, "#PF Page-Fault Exception");
 }

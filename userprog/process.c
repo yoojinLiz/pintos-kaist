@@ -27,6 +27,7 @@
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
+enum intr_level old_level;
 
 /* General process initializer for initd and other process. */
 static void
@@ -102,14 +103,17 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 		return TID_ERROR;
 	}
 
-// 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
+	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
 	struct thread *child = get_child_process(pid);
-	sema_down(&child->fork_sema); 
+
+	old_level = intr_disable ();
+	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
+	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
 	return pid;
 
-// 	// 변경 전
-// 	// return thread_create (name,
-// 	// 		PRI_DEFAULT, __do_fork, thread_current ());
+	// 변경 전
+	// return thread_create (name,
+	// 		PRI_DEFAULT, __do_fork, thread_current ());
 }
 
 #ifndef VM
@@ -122,24 +126,61 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *parent_page;
 	void *newpage;
 	bool writable;
-
-	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
-
-	/* 2. Resolve VA from the parent's page map level 4. */
+	// printf("duplicate_pte 시작===========================\n");
+	/* 1. TODO: If the parent_page is kernel page, then return immediately.
+	부모가 현재 커널쪽에 있으면 false
+	 */
+	printf("유저 가상주소(va)는? %p ---", va);
+	if is_kernel_vaddr(va){
+		// printf("어디니?? 1\n");
+		// printf("%p\n", va);
+		return false;
+	}
+	// printf("!!!!!!!!!!!!!!parent는 name은 %s, id는 %d, 주소는 %p\n", parent->name, parent->tid, parent);
+	
+	/* 2. Resolve VA from the parent's page map level 4. 
+	pml4_get_page는 "물리주소를 찾는 함수"임. 누구의 물리주소를 찾냐면? 유저영역 쪽에 있는 가상주소 va(부모스레드)의 물리주소를 찾는 것.
+	pml4_get_page가 리턴하는 거는 "커널주소"를 리턴한다. 어떤 커널주소를 리턴하냐면? 찾은 물리주소와 연결된 커널의 주소를 리턴함.
+	즉 va의 물리주소를 찾아서 그 물리주소와 연결 되어있는 커널주소를 반환하는 함수임. if)물리주소가 매핑 안되어있으면 NULL반환 */
+	
 	parent_page = pml4_get_page (parent->pml4, va);
+	printf("유저가상주소(va)와 연결된 커널의 주소 %p\n", parent_page);
+	//parent_page에는 유저영역(va)와 연결된 커널의 주소가 들어있다.
+	if (parent_page == NULL){ 
+		// printf("어디니?? 2\n");
+		return false;
+	}
 
-	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
-	 *    TODO: NEWPAGE. */
+	/* 3. TODO: Allocate new PAL_USER page for the child and set result to NEWPAGE.*/
+
+	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+	/*페이지를 할당 받을 건데 PAL_USER플레그를 줌으로써 유저가 쓸 수 있는 메모리 pool에서 페이지를 가져올거고
+	PAL_ZERO를 씀으로써 할당받은 페이지 메모리를 0으로 초기화 할 거임.
+	https://casys-kaist.github.io/pintos-kaist/appendix/memory_allocation.html 참고*/
+
+	if (newpage == NULL){ //페이지가 할당 안됐으면 false
+		// printf("어디니?? 3\n");
+		return false;
+	}
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
 
+	// parent가 시작하는 커널의 주소부터 parent_page의 크기만큼 newpage로 복사 중
+	// memcpy(newpage, parent_page, sizeof(parent_page));  
+	memcpy(newpage, parent_page, PGSIZE);  
+	// printf("sizeof(parent_page)일때 -> %d / PGZIE로 했을때 %d\n", parent_page, PGSIZE);
+	writable = is_writable(pte); //PTE가 가리키는 가상주소가 작성 가능한 지(wriatable) 아닌 지 확인합니다.
+
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		// printf("어디니?? 4\n");
+		return false;
 	}
+	// printf("duplicate_pte 끝============================\n");
 	return true;
 }
 #endif
@@ -158,22 +199,28 @@ __do_fork (void *aux) {
 	struct intr_frame *parent_if;
 	bool succ = true;
 
+	// printf("do_fork 들어왔다=====================================\n");
+	
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-
+	// printf("1 =====================================\n");
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
-
+	// printf("2 =====================================\n");
 	process_activate (current);
+	// printf("3 =====================================\n");
 #ifdef VM
 	supplemental_page_table_init (&current->spt);
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
-	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
+	// printf("4 =====================================\n");
+	//현재 아래 if문을 통해 error로 들어가고, print(6)찍고 child: exit(0)으로 종료됨
+	if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) 
 		goto error;
+	// printf("4-1 =====================================\n");
 #endif
 
 	/* TODO: Your code goes here.
@@ -181,14 +228,23 @@ __do_fork (void *aux) {
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
-
+	
+	// printf("process_init 이전===============================\n");
 	process_init ();
+	// printf("process_init 끝===============================\n");
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
+		// printf("5 =====================================\n");
+		intr_set_level (old_level);
+		// printf("do_iret끝===============================\n");
 error:
+	// printf("6 =====================================\n");
 	thread_exit ();
+	// printf("7 =====================================\n");
+	intr_set_level (old_level);
+	// printf("fork 실패=======================================\n");
 }
 
 
@@ -833,4 +889,14 @@ struct thread *get_child_process (tid_t child_tid) {
 		}
 	}
 	return NULL; 
+
+	// struct thread *cur = thread_current ();
+	// struct list *child_list = &cur->children;
+	// for (struct list_elem *e = list_begin(child_list); e != list_end(child_list); e = list_next(e)){
+	// 	struct thread *t = list_entry(e, struct thread, children_elem);
+	// 	if (t->tid == child_tid) {
+	// 		return t;
+	// 	}
+	// }
+	// return NULL;
 }
