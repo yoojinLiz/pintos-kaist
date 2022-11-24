@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "threads/synch.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -43,6 +44,8 @@ static struct lock tid_lock;
 
 /* Thread destruction requests */
 static struct list destruction_req;
+
+static struct semaphore wait_sema;
 
 /* Statistics. */
 static long long idle_ticks;   /* # of timer ticks spent idle. */
@@ -115,6 +118,7 @@ void thread_init(void)
 	/* Init the globla thread context */
 	lock_init(&tid_lock);
 	list_init(&ready_list);
+	sema_init(&wait_sema,0);
 	list_init(&destruction_req);
 
 	//* 1주차 프로젝트 동안 추가한 코드
@@ -454,7 +458,7 @@ init_thread(struct thread *t, const char *name, int priority)
 
 
 	//* 2주차 추가
-	t->fd_count = 1;
+	t->fd_count = 2;
 	list_init(&t->fd_list);
 
 	list_init(&t->children);
@@ -799,12 +803,26 @@ void refresh_priority(void)
 	}
 }
 
-bool check_destory_thread(struct list_elem *destory_elem)
+int exit_code_dead_child(struct list_elem *destory_elem)
 {
 
 	if (list_empty(&destruction_req))
 	{
-		return false;
+		return -2;
 	}
-	return check_tid_in_list(&destruction_req, destory_elem);
+	return find_exit_code(&destruction_req, destory_elem);
+}
+
+void syscall_wait_sema_down(){
+	enum intr_level old_level;
+	old_level = intr_disable();
+	sema_down(&wait_sema);
+	intr_set_level(old_level);
+}
+
+void syscall_wait_sema_up(){
+	enum intr_level old_level;
+	old_level = intr_disable();
+	sema_up(&wait_sema);
+	intr_set_level(old_level);
 }
