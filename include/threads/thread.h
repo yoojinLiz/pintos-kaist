@@ -103,7 +103,7 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-	int fd;							//* 2주차 쓰레드가 직접 연 파일의 식별자 저장
+
 	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
 	short exit_code;				//* 쓰레드가 종료할떄 상태인 exit_code
 
@@ -111,6 +111,8 @@ struct thread
 	struct list children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
 	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
 
+	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
+	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
 
 
 	int fd_count;
@@ -183,6 +185,7 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-bool check_destory_thread(struct list_elem *destory_elem);
-
+int exit_code_dead_child(struct list_elem *destory_elem);
+void syscall_wait_sema_down();
+void syscall_wait_sema_up();
 #endif /* threads/thread.h */
