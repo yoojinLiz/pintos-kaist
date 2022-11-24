@@ -30,6 +30,8 @@
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
+static void __do_fork (void *);
+
 enum intr_level old_level;
 
 /* General process initializer for initd and other process. */
@@ -103,13 +105,9 @@ process_fork (const char *name, struct intr_frame *if_) {
 	struct thread *parent = thread_current();
 
 	parent->tf = *if_;
-// 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-// 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
 
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-	
-	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
+	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
 	
 
@@ -118,12 +116,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 	}
 
 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-	struct thread *child = get_child_process(pid);
+	// struct thread *child = get_child_process(pid);
 
 	old_level = intr_disable ();
 	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
 	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
-	return pid;
+	// return pid;
 
 	// 변경 전
 	// return thread_create (name,
@@ -246,7 +244,6 @@ __do_fork (void *aux) {
 
 	//현재 아래 if문을 통해 error로 들어가고, print(6)찍고 child: exit(0)으로 종료됨
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) 
-
 		goto error;
 #endif
 	/* TODO: Your code goes here.
