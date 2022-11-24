@@ -19,10 +19,13 @@
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 #include "intrinsic.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
+
+
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -93,17 +96,18 @@ initd (void *f_name) {
  * TID_ERROR if the thread cannot be created. */
 // ! &parent 에서 parent_if 참조가 안되고 있습니다. 오류 확인하고 pull_request 해주세용! :)
 // tid_t
-process_fork (const char *name, struct intr_frame *if_ UNUSED) {
+process_fork (const char *name, struct intr_frame *if_) {
 // 	/* Clone current thread to new thread.*/
 
 // 	//재민
 	struct thread *parent = thread_current();
+	parent->tf = *if_;
 // 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 // 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-// 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
-// 	if(pid == TID_ERROR){
-// 		return TID_ERROR;
-// 	}
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+	if(pid == TID_ERROR){
+		return TID_ERROR;
+	}
 
 // 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
 // 	// struct thread *child = get_child(pid);
@@ -127,23 +131,53 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
+	printf("parent tid %d\n",parent->tid);
+	printf("current tid %d\n",current->tid);
+	printf("parent pml4 = %p\n",parent->pml4);
+	printf("parent pte = %p\n",pte);
+	printf("parent va = %p\n",va);
+
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	if(is_kern_pte(pte)){
+	// if(parent->pml4 > KERN_BASE){
+	// if(is_kernel_vaddr(va)){
+		printf("return false kernel\n");
+		return true;
+	}
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
+
+
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
+	// TODO palloc 써서 페이지 만들어서 기존 페이지 복사해서 자식한테 줘라.
+	// https://devblogs.microsoft.com/oldnewthing/20160701-00/?p=93785
+	// *? PDPT : page directory pointer table
+	// *? PDE  : page directory entry 
+	// *? PTE  : page table entry
+	// *? PDP  : Page-Directory-pointer
+	// *? PT   : pagetable 
+
+	// newpage = palloc_get_page(PAL_USER);
+	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
 
+	writable = is_writable(pte);
+
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		printf("return false\n");
+		return false;
 	}
+
+	printf("return true\n");
 	return true;
 }
 #endif
@@ -153,6 +187,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
+
 static void
 __do_fork (void *aux) {
 	struct intr_frame if_;
@@ -160,6 +195,10 @@ __do_fork (void *aux) {
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
+
+	printf("_do_fork_current tid = %d\n",current->tid);
+	printf("_do_fork_parent tid = %d\n",parent->tid);
+
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
@@ -176,20 +215,23 @@ __do_fork (void *aux) {
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
+	printf("pml4 for each before\n");
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
-
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
+	copy_fd_list(parent,current);
+
 
 	process_init ();
-
 	/* Finally, switch to the newly created process. */
 	if (succ)
+		printf("excute\n");
 		do_iret (&if_);
 error:
 	thread_exit ();
@@ -245,7 +287,6 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
-
 	char *token , *save_ptr;
 	int argc , i;
 	int *argv[LOADER_ARGS_LEN / 2 + 1]; 
@@ -254,7 +295,6 @@ process_exec (void *f_name) {
 	//* 인자 parsing 해서 스택에 push 
 	char * file_name = strtok_r (f_name, " ", &save_ptr);
 	argv[0] = file_name;
-
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
@@ -323,27 +363,38 @@ process_wait (tid_t child_tid) {
 	/* The pintos exit if process_wait (initd), 
 	  we recommend you to add infinite loop here before implementing the process_wait. */
 
-	bool check = false;
-	while (!check)
-	{	
-		enum intr_level old_level;
-		old_level = intr_disable();
-		check = check_destory_thread(child_tid);
-		intr_set_level(old_level);
-	}
-	return -1;
+	syscall_wait_sema_down();
+
+	// bool check = false;
+	// while (!check)
+	// {	
+	// 	enum intr_level old_level;
+	// 	old_level = intr_disable();
+	// 	check = check_destory_thread(child_tid);
+	// 	intr_set_level(old_level);
+	// }
+	int exit_code = exit_code_dead_child(child_tid);
+
+	// if(exit_code == -2){
+	// 	sema_down(&wait_sema);
+	// }
+
+	return exit_code;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-	/* TODO: Your code goes here.
-	 * TODO: Implement process termination message (see
-	 * TODO: project2/process_termination.html).
-	 * TODO: We recommend you to implement process resource cleanup here. */
+
+
+	// /* TODO: Your code goes here.
+	//  * TODO: Implement process termination message (see
+	//  * TODO: project2/process_termination.html).
+	//  * TODO: We recommend you to implement process resource cleanup here. */
 	if(curr->pml4 > KERN_BASE)
 		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
+	syscall_wait_sema_up();
 	process_cleanup ();
 }
 
@@ -385,54 +436,6 @@ process_activate (struct thread *next) {
 	tss_update (next);
 }
 
-/* We load ELF binaries.  The following definitions are taken
- * from the ELF specification, [ELF1], more-or-less verbatim.  */
-
-/* ELF types.  See [ELF1] 1-2. */
-#define EI_NIDENT 16
-
-#define PT_NULL    0            /* Ignore. */
-#define PT_LOAD    1            /* Loadable segment. */
-#define PT_DYNAMIC 2            /* Dynamic linking info. */
-#define PT_INTERP  3            /* Name of dynamic loader. */
-#define PT_NOTE    4            /* Auxiliary info. */
-#define PT_SHLIB   5            /* Reserved. */
-#define PT_PHDR    6            /* Program header table. */
-#define PT_STACK   0x6474e551   /* Stack segment. */
-
-#define PF_X 1          /* Executable. */
-#define PF_W 2          /* Writable. */
-#define PF_R 4          /* Readable. */
-
-/* Executable header.  See [ELF1] 1-4 to 1-8.
- * This appears at the very beginning of an ELF binary. */
-struct ELF64_hdr {
-	unsigned char e_ident[EI_NIDENT];
-	uint16_t e_type;
-	uint16_t e_machine;
-	uint32_t e_version;
-	uint64_t e_entry;
-	uint64_t e_phoff;
-	uint64_t e_shoff;
-	uint32_t e_flags;
-	uint16_t e_ehsize;
-	uint16_t e_phentsize;
-	uint16_t e_phnum;
-	uint16_t e_shentsize;
-	uint16_t e_shnum;
-	uint16_t e_shstrndx;
-};
-
-struct ELF64_PHDR {
-	uint32_t p_type;
-	uint32_t p_flags;
-	uint64_t p_offset;
-	uint64_t p_vaddr;
-	uint64_t p_paddr;
-	uint64_t p_filesz;
-	uint64_t p_memsz;
-	uint64_t p_align;
-};
 
 /* Abbreviations */
 #define ELF ELF64_hdr
@@ -837,4 +840,40 @@ struct thread *get_child_process (tid_t child_tid) {
 		}
 	}
 	return NULL; 
+}
+
+void copy_fd_list(struct thread* parent,struct thread* child){
+
+	struct list *p_fd_list,*c_fd_list;
+	struct fd * find_fd;
+	struct file * copy_file;
+
+	p_fd_list = &parent->fd_list;
+	c_fd_list = &child->fd_list;
+
+	if(list_empty(p_fd_list)){
+		return;
 	}
+
+	struct list_elem * cur;
+	
+	cur = list_begin(p_fd_list);
+
+	while (cur != list_end(p_fd_list))
+	{	
+		// 구조체 생성
+		struct fd *new_fd = (struct fd*)malloc(sizeof(struct fd));
+		// fd 로 변환
+		find_fd = list_entry(cur, struct fd, elem);
+		// 파일 복사
+		copy_file = file_duplicate(find_fd->file);
+		// 입력
+		new_fd->file = copy_file;
+		new_fd->value = child->fd_count + 1;
+		// fd값 증가
+		child->fd_count +=1;
+
+		list_push_back(c_fd_list,&new_fd->elem);
+		cur = list_next(cur);
+	}
+}

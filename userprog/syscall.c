@@ -24,6 +24,7 @@
 #include "lib/user/syscall.h"
 #include "../include/filesys/file.h"
 #include "filesys/inode.h"
+#include "../include/userprog/process.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -95,7 +96,7 @@ void print_values(struct intr_frame *f,int type);
 
 bool check_ptr_address(struct intr_frame *f);
 
-struct list_elem* find_elem_match_fd(int fd_value);
+struct list_elem* find_elem_match_fd_value(int fd_value);
 
 struct syscall_func syscall_func[] = {
 	{SYS_HALT,syscall_halt},
@@ -145,8 +146,8 @@ void syscall_exit(struct intr_frame *f){
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
-
-
+	// printf("syscall_fork current tid = %d\n",thread_current()->tid);
+	// process_fork(f->R.rdi,&thread_current()->tf);
 	return NULL;
 }
 
@@ -154,9 +155,13 @@ pid_t syscall_fork (struct intr_frame *f){
 // exec func parameter : const char *cmd_line
 // int syscall_exec (const char *cmd_line){
 int syscall_exec (struct intr_frame *f){
+
 	char *file_name = f->R.rdi;
-	char *fn_copy;
-	printf("파일 이름 %s\n", file_name);
+	// char *fn_copy;
+	// printf("파일 이름 %s\n", file_name);
+	print_values(f,0);
+	printf("%s\n",f->R.rdi);
+	process_exec(file_name);
 
 	/*
 	* 현재의 프로세스가 cmd_line에서 이름이 주어지는 실행가능한 프로세스로 변경됩니다. 
@@ -166,26 +171,29 @@ int syscall_exec (struct intr_frame *f){
 	* 이 함수는 exec 함수를 호출한 쓰레드의 이름은 바꾸지 않습니다. 
 	* file descriptor는 exec 함수 호출 시에 열린 상태로 있다는 것을 알아두세요.
 	*/
-
+		
 	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). */
-	check_addr(file_name);
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
-	{
-		syscall_abnormal_exit(-1);
-		return -1;
-	}
-	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
-	if (process_exec (fn_copy) < 0) {
-		syscall_abnormal_exit(-1);
-	}
+	// check_addr(file_name);
+	// fn_copy = palloc_get_page (0);
+	// if (fn_copy == NULL)
+	// {
+	// 	syscall_abnormal_exit(-1);
+	// 	return -1;
+	// }
+	// strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
+	// if (process_exec (fn_copy) < 0) {
+	// 	syscall_abnormal_exit(-1);
+	// }
     return 0;
 
 }
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){
+	// thread_set_priority(thread_current()->priority -1);
+	// printf("syscall_wait before current tid = %d\n",thread_current()->tid);
 	// process_wait(pid);
+	// printf("syscall_wait after current tid = %d\n",thread_current()->tid);
 	return 0;
 }
 
@@ -193,9 +201,9 @@ int syscall_wait (pid_t pid){
 bool syscall_create (struct intr_frame *f){
 	bool success;
 
-	check_addr(f->R.rdi); // 유진 추가 
+	check_addr(f->R.rdi);
 
-	if(f->R.rdi == 0){
+	if(f->R.rdi == NULL){
 		syscall_abnormal_exit(-1);
 	}
 	success = filesys_create(f->R.rdi,f->R.rsi);
@@ -220,22 +228,35 @@ int syscall_open (struct intr_frame *f){
 
 	struct file *open_file;
 	struct list * fd_list;
+	struct ELF64_hdr ehdr;
+
 	fd_list = &thread_current()->fd_list;
 	check_addr(f->R.rdi);
 	
 	open_file = filesys_open(f->R.rdi);
-
-	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
-
 	if(open_file == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
+	
+	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
 
 	fd->value = thread_current()->fd_count + 1;
 	fd->file = open_file;
-	list_insert_ordered(fd_list,&fd->elem,cmp_fd,NULL);
+	list_push_back(fd_list,&fd->elem);
 	thread_current()->fd_count +=1;
+
+	// open 시 해더파일을 읽어서 excutable 한 파일인지 확인
+	if(!(file_read (fd->file, &ehdr, sizeof ehdr) != sizeof ehdr
+		|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
+		|| ehdr.e_type != 2
+		|| ehdr.e_machine != 0x3E // amd64
+		|| ehdr.e_version != 1
+		|| ehdr.e_phentsize != sizeof (struct ELF64_PHDR)
+		|| ehdr.e_phnum > 1024)){
+			file_deny_write(fd->file);
+		}
+	open_file->pos=0;
 	f->R.rax = fd->value;
 	return fd->value;
 }
@@ -248,12 +269,13 @@ int syscall_filesize (struct intr_frame *f){
 	struct list_elem * find_elem;
 	struct fd *find_fd;
 
-	find_elem = find_elem_match_fd(fd_value);
+	find_elem = find_elem_match_fd_value(fd_value);
 	if(find_elem == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
 	find_fd = list_entry(find_elem, struct fd, elem);
+
 	struct inode * find_inode = file_get_inode(find_fd->file);
 	
 	int size = inode_length(find_inode);
@@ -266,7 +288,7 @@ int syscall_filesize (struct intr_frame *f){
 int syscall_read (struct intr_frame *f){
 
 	check_addr(f->R.rsi);
-	int fd_value, size, check_size;
+	int fd_value, size;
 	fd_value = f->R.rdi;
 	char* buf = f->R.rsi;
 	size = f->R.rdx;
@@ -274,8 +296,9 @@ int syscall_read (struct intr_frame *f){
 	int return_value;
 	struct list_elem * read_elem;
 	struct fd * read_fd;
+	struct ELF64_hdr ehdr;
 
-	read_elem = find_elem_match_fd(fd_value);
+	read_elem = find_elem_match_fd_value(fd_value);
 
 	if(read_elem == NULL){
 		f->R.rax = -1;
@@ -287,16 +310,21 @@ int syscall_read (struct intr_frame *f){
 		return;
 	}
 
+	struct inode * find_inode = file_get_inode(read_fd->file);
+	int filesize = inode_length(find_inode);
+
+	
 	return_value = file_read(read_fd->file,buf,size);
-	check_size = return_value;
-	f->R.rax = check_size;
-	return check_size;
+
+	f->R.rax = return_value;
+	return return_value;
 }
 
 
 // write func parameter : int fd, const void *buffer, unsigned size
 void syscall_write(struct intr_frame *f){
 	check_addr(f->R.rsi);
+
 	int fd_value = f->R.rdi;
 	char *buf = f->R.rsi;
 	int size = f->R.rdx;
@@ -306,41 +334,75 @@ void syscall_write(struct intr_frame *f){
 	}
 
 	int return_value;
-	struct list_elem * read_elem;
-	struct fd * read_fd;
+	struct list_elem * write_elem;
+	struct fd * write_fd;
+	struct file *file;
 
-	read_elem = find_elem_match_fd(fd_value);
+	write_elem = find_elem_match_fd_value(fd_value);
 
-	if(read_elem == NULL){
+	if(write_elem == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
 
-	read_fd = list_entry(read_elem, struct fd, elem);
-	if(read_fd == NULL){
+	write_fd = list_entry(write_elem, struct fd, elem);
+	if(write_fd == NULL){
 		return;
 	}
 
-	return_value = file_write(read_fd->file,buf,size);
+	if(write_fd->file->deny_write){
+		f->R.rax = 0;
+		return;
+	}
+	struct inode * find_inode = file_get_inode(write_fd->file);
+	int filesize = inode_length(find_inode);
+
+	return_value = file_write(write_fd->file,buf,size);
+
 	f->R.rax = return_value;
 	return return_value;
-
 }
 
 
 // seek func parameter : int fd, unsigned position
 void syscall_seek (struct intr_frame *f){
 
+	int fd_value = f->R.rdi;
+	unsigned int offset = f->R.rsi;
+	
+	struct list *fd_list = &thread_current()->fd_list;
+	struct list_elem * find_elem;
 
+	find_elem = find_elem_match_fd_value(fd_value);
+	if(find_elem == NULL){
+		syscall_abnormal_exit(-1);
+	}
 
+	fd_list = list_entry(find_elem, struct fd, elem);
+	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+
+	file_seek(find_fd->file,offset);
 }
 
 
 // tell func parameter : int fd
 unsigned syscall_tell (struct intr_frame *f){
+	int fd_value = f->R.rdi;
+	struct list *fd_list = &thread_current()->fd_list;
+	struct list_elem * find_elem;
 
+	find_elem = find_elem_match_fd_value(fd_value);
+	if(find_elem == NULL){
+		syscall_abnormal_exit(-1);
+	}
 
-	return 0;
+	fd_list = list_entry(find_elem, struct fd, elem);
+	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+
+	unsigned int position = file_tell(find_fd->file);
+
+	f->R.rax = position;
+	return position;
 }
 
 
@@ -352,7 +414,7 @@ void syscall_close (struct intr_frame *f){
 	struct list_elem * find_elem;
 
 
-	find_elem = find_elem_match_fd(fd_value);
+	find_elem = find_elem_match_fd_value(fd_value);
 	if(find_elem == NULL){
 		syscall_abnormal_exit(-1);
 	}
@@ -415,12 +477,11 @@ void check_addr(void * addr) {
 	   해당 물리 주소와 연결된 커널 가상 주소를 반환하거나 만약 해당 물리 주소가 가상 주소와 매핑되지 않은 영역이면 NULL을 반환한다.
 	   따라서 따라서 NULL인지 체크함으로서 포인터가 가리키는 주소가 유저 영역 내에 있지만 자신의 페이지로 할당하지 않은 영역인지 확인해야 한다 */
 	   syscall_abnormal_exit(-1); 
-
 	}
 }
 
 struct list_elem*
-find_elem_match_fd(int fd_value){
+find_elem_match_fd_value(int fd_value){
 
 	struct list *fd_list = &thread_current()->fd_list;
 	struct list_elem * cur;
@@ -440,5 +501,6 @@ find_elem_match_fd(int fd_value){
 	}
 	return NULL;
 }
+
 
 
