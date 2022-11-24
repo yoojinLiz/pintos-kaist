@@ -155,7 +155,6 @@ pid_t syscall_fork (struct intr_frame *f){
 	char *file_name = f->R.rdi;
 	// print_values(f,1);
 	process_fork(file_name, f);
-
 }
 
 
