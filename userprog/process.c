@@ -30,7 +30,6 @@
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
-static void __do_fork (void *);
 
 /* General process initializer for initd and other process. */
 static void
@@ -94,26 +93,33 @@ initd (void *f_name) {
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-// ! &parent 에서 parent_if 참조가 안되고 있습니다. 오류 확인하고 pull_request 해주세용! :)
+
+
 // tid_t
 process_fork (const char *name, struct intr_frame *if_) {
-// 	/* Clone current thread to new thread.*/
 
-// 	//재민
+// 	/* Clone current thread to new thread.*/
 	struct thread *parent = thread_current();
+
 	parent->tf = *if_;
 // 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 // 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+
+	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
+	
+	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+	
+
 	if(pid == TID_ERROR){
 		return TID_ERROR;
 	}
 
 // 	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-// 	// struct thread *child = get_child(pid);
-// 	// sema_down(&child->fork_sema); 
-// 	// return pid;
-
+	struct thread *child = get_child_process(pid);
+	sema_down(&child->fork_sema); 
+	return pid;
 
 // 	// 변경 전
 // 	// return thread_create (name,
@@ -834,12 +840,13 @@ struct thread *get_child_process (tid_t child_tid) {
 		return -1; 
 	}
 	for (child =list_begin(&curr); child!= list_end(&curr); child = list_next(child)) {
-		child_thread = list_entry (child, struct thread, elem);
+		child_thread = list_entry (child, struct thread, children_elem);
 		if(child_thread->tid == child_tid){
 			return child_thread;
 		}
 	}
 	return NULL; 
+
 }
 
 void copy_fd_list(struct thread* parent,struct thread* child){
@@ -876,4 +883,6 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 		list_push_back(c_fd_list,&new_fd->elem);
 		cur = list_next(cur);
 	}
+
 }
+
