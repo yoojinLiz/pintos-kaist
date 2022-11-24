@@ -5,10 +5,11 @@
 #define LOADER_BASE 0x7c00      /* Physical address of loader's base. */
 #define LOADER_END  0x7e00      /* Physical address of end of loader. */
 
-/* Physical address of kernel base. */
+/* Physical address of kernel base.- 물리주소 0에 매핑될 가상주소라는 의미로 이해 */
 #define LOADER_KERN_BASE 0x8004000000
 
-/* Kernel virtual address at which all physical memory is mapped. */
+/* Kernel virtual address at which all physical memory is mapped.
+  로더의 물리 위치를 가상메모리의 이 주소부터 매핑하기 시작 */
 #define LOADER_PHYS_BASE 0x200000
 
 /* Multiboot infos */

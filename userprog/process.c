@@ -324,7 +324,6 @@ process_exec (void *f_name) {
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
-
 	/* We first kill the current context */
 	process_cleanup ();
 	char *token , *save_ptr;
@@ -386,6 +385,7 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
+
 
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
