@@ -110,10 +110,12 @@ struct thread
 	tid_t parent_tid;				//* 2주차 수정 : 부모 프로레스(스레드)의 tid
 	struct list children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
 	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
-
+	
 	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
 	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
-
+	
+	struct intr_frame parent_if; // _fork() 구현 때 사용, __do_fork() 함수
+	struct file* fd_table[10]; 
 
 	int fd_count;
 	struct list fd_list;
