@@ -107,11 +107,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 // 	/* Clone current thread to new thread.*/
 	struct thread *parent = thread_current();
 
-	printf("===부모 레지스터에는 뭐가 들어있나?\n");
-	print_values(&if_,0);
+	// printf("===부모 레지스터에는 뭐가 들어있나?\n");
+	// print_values(&if_,0);
 
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	// parent->tf = *if_;
+	memset(&parent->parent_if, 0, sizeof(struct intr_frame));
 	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); // 부모 프로세스 메모리를 복사
 
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
@@ -144,7 +145,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *parent_page;
 	void *newpage;
 	bool writable;
-	printf("duplicate_pte 시작===========================\n");
+	// printf("duplicate_pte 시작===========================\n");
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. 부모가 현재 커널쪽에 있으면 false*/
 
 	// printf("유저 가상주소(va)는? %p ---\n", va);
@@ -216,24 +217,25 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 static void
 __do_fork (void *aux) {
-	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
+	struct intr_frame if_;
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
+	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 	
-	// printf("do_fork1\n");
+	printf("do_fork1\n");
 	/* 1. Read the cpu context to local stack. */
+	memset(&if_, 0, sizeof(struct intr_frame));
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
 	
-	// printf("do_fork2\n");
+	printf("do_fork2\n");
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
 	
-	// printf("do_fork3\n");
+	printf("do_fork3\n");
 	process_activate (current);
 	
 #ifdef VM
@@ -255,17 +257,17 @@ __do_fork (void *aux) {
 	// printf("do_fork5\n");
 	
 	
-	// copy_fd_list(parent,current);
+	copy_fd_list(parent,current);
 
-	for (int fd = 3; fd < 10; fd ++){
-		if(parent->fd_table[fd]){
-			current->fd_table[fd] = file_duplicate(parent->fd_table[fd]);
-			printf("+++++++++++++++++이게 찍히면 fd.table은 비어있다는 소리임.");
-		}else{
-			printf("!!!!!!!!!!!!!!!!!!!!!!!이게 찍히면 fd.table은 비어있다는 소리임.");
-			current->fd_table[fd] = NULL;
-		}
-	}
+	// for (int fd = 3; fd < 10; fd ++){
+	// 	if(parent->fd_table[fd]){
+	// 		current->fd_table[fd] = file_duplicate(parent->fd_table[fd]);
+	// 		printf("+++++++++++++++++이게 찍히면 fd.table은 비어있다는 소리임.");
+	// 	}else{
+	// 		printf("!!!!!!!!!!!!!!!!!!!!!!!이게 찍히면 fd.table은 비어있다는 소리임.");
+	// 		current->fd_table[fd] = NULL;
+	// 	}
+	// }
 
 
 	printf("do_fork6\n");
