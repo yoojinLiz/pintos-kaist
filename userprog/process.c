@@ -127,7 +127,7 @@ process_fork (const char *name, struct intr_frame *if_) {
 
 	old_level = intr_disable ();
 	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
-	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
+	// printf("do_fork 완료 될 때까지 대기 중 =============================\n");
 	return pid;
 
 	// 변경 전
@@ -145,10 +145,8 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *parent_page;
 	void *newpage;
 	bool writable;
-	// printf("duplicate_pte 시작===========================\n");
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. 부모가 현재 커널쪽에 있으면 false*/
 
-	// printf("유저 가상주소(va)는? %p ---\n", va);
 	if is_kernel_vaddr(va){
 		/*이 부분 논리 상은 False가 맞는데 true로 일단 바꿈.
 		fork-multiple의 9번째 테스트 케이스에서 va를 KERN-BASE주소로 테스트 해본단 말이야? 
@@ -193,7 +191,6 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	// parent가 시작하는 커널의 주소부터 parent_page의 크기만큼 newpage로 복사 중
 	// memcpy(newpage, parent_page, sizeof(parent_page));  
 	memcpy(newpage, parent_page, PGSIZE);  
-	// printf("sizeof(parent_page)일때 -> %d / PGZIE로 했을때 %d\n", parent_page, PGSIZE);
 	writable = is_writable(pte); //PTE가 가리키는 가상주소가 작성 가능한 지(wriatable) 아닌 지 확인합니다.
 
 
@@ -204,8 +201,6 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 		return false;
 	}
 
-	// printf("자식스레드의 id : %d, 자식프로세스의 pml4 정보? %p\n", current->tid, current->pml4);
-	// printf("duplicate_pte 끝=============================\n");
 	return true;
 }
 #endif
@@ -224,18 +219,15 @@ __do_fork (void *aux) {
 	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 	
-	printf("do_fork1\n");
 	/* 1. Read the cpu context to local stack. */
 	memset(&if_, 0, sizeof(struct intr_frame));
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
 	
-	printf("do_fork2\n");
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
 	
-	printf("do_fork3\n");
 	process_activate (current);
 	
 #ifdef VM
@@ -254,39 +246,21 @@ __do_fork (void *aux) {
 	 * TODO:       the resources of parent.*/
 
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
-	// printf("do_fork5\n");
 	
 	
 	copy_fd_list(parent,current);
 
-	// for (int fd = 3; fd < 10; fd ++){
-	// 	if(parent->fd_table[fd]){
-	// 		current->fd_table[fd] = file_duplicate(parent->fd_table[fd]);
-	// 		printf("+++++++++++++++++이게 찍히면 fd.table은 비어있다는 소리임.");
-	// 	}else{
-	// 		printf("!!!!!!!!!!!!!!!!!!!!!!!이게 찍히면 fd.table은 비어있다는 소리임.");
-	// 		current->fd_table[fd] = NULL;
-	// 	}
-	// }
-
-
 	printf("do_fork6\n");
-	// intr_set_level (old_level);
 	if_.R.rax = 0;
 	process_init ();
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		printf("excute\n");
-
-		// printf("===자식 레지스터에는 뭐가 들어있나?\n");
 		// print_values(&if_,0);
 		intr_set_level (old_level);
-		printf("do_fork7\n");
-		
 		do_iret (&if_);
-		// intr_set_level (old_level);
 error:
-	// printf("do_fork7\n");
+	printf("do_fork7\n");
 	intr_set_level (old_level);
 	thread_exit ();
 }
