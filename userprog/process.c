@@ -101,7 +101,7 @@ initd (void *f_name) {
  * TID_ERROR if the thread cannot be created. */
 
 
-// tid_t
+tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 
 // 	/* Clone current thread to new thread.*/
@@ -126,7 +126,7 @@ process_fork (const char *name, struct intr_frame *if_) {
 
 	old_level = intr_disable ();
 	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
-	// printf("do_fork 완료 될 때까지 대기 중 =============================\n");
+	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
 	return pid;
 
 	// 변경 전
@@ -144,7 +144,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *parent_page;
 	void *newpage;
 	bool writable;
-	// printf("duplicate_pte 시작===========================\n");
+	printf("duplicate_pte 시작===========================\n");
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. 부모가 현재 커널쪽에 있으면 false*/
 
 	// printf("유저 가상주소(va)는? %p ---\n", va);
@@ -257,10 +257,19 @@ __do_fork (void *aux) {
 	
 	// copy_fd_list(parent,current);
 
+	for (int fd = 3; fd < 10; fd ++){
+		if(parent->fd_table[fd]){
+			current->fd_table[fd] = file_duplicate(parent->fd_table[fd]);
+			printf("+++++++++++++++++이게 찍히면 fd.table은 비어있다는 소리임.");
+		}else{
+			printf("!!!!!!!!!!!!!!!!!!!!!!!이게 찍히면 fd.table은 비어있다는 소리임.");
+			current->fd_table[fd] = NULL;
+		}
+	}
 
 
 	printf("do_fork6\n");
-	intr_set_level (old_level);
+	// intr_set_level (old_level);
 	if_.R.rax = 0;
 	process_init ();
 	/* Finally, switch to the newly created process. */
@@ -269,6 +278,9 @@ __do_fork (void *aux) {
 
 		// printf("===자식 레지스터에는 뭐가 들어있나?\n");
 		// print_values(&if_,0);
+		intr_set_level (old_level);
+		printf("do_fork7\n");
+		
 		do_iret (&if_);
 		// intr_set_level (old_level);
 error:
@@ -323,6 +335,7 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+
 
 	/* We first kill the current context */
 	process_cleanup ();
@@ -385,7 +398,6 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-
 
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 

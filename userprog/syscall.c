@@ -183,7 +183,7 @@ int syscall_exec (struct intr_frame *f){
 	}
     return 0;
 
-
+}
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){
