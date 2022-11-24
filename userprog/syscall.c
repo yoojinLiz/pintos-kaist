@@ -16,6 +16,7 @@
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "threads/malloc.h"
+#include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
@@ -161,38 +162,28 @@ pid_t syscall_fork (struct intr_frame *f){
 // exec func parameter : const char *cmd_line
 // int syscall_exec (const char *cmd_line){
 int syscall_exec (struct intr_frame *f){
-
+   //! 지금까지 exec 안되던 이유 = palloc_get_page함수 호출하면서 palloc.h 파일 include 안해서.. 
+   //! 저부터 머리 박습니다.. - yj 
 	char *file_name = f->R.rdi;
-	// char *fn_copy;
-	// printf("파일 이름 %s\n", file_name);
-	print_values(f,0);
-	printf("%s\n",f->R.rdi);
-	process_exec(file_name);
+	char *fn_copy ;
 
-	/*
-	* 현재의 프로세스가 cmd_line에서 이름이 주어지는 실행가능한 프로세스로 변경됩니다. 
-	* 이때 주어진 인자들을 전달합니다. 성공적으로 진행된다면 어떤 것도 반환하지 않습니다. 
-	* 만약 프로그램이 이 프로세스를 로드하지 못하거나 다른 이유로 돌리지 못하게 되면 
-	* exit state -1을 반환하며 프로세스가 종료됩니다. 
-	* 이 함수는 exec 함수를 호출한 쓰레드의 이름은 바꾸지 않습니다. 
-	* file descriptor는 exec 함수 호출 시에 열린 상태로 있다는 것을 알아두세요.
-	*/
-		
-	/* Make a copy of FILE_NAME. Otherwise there's a race between the caller and load(). */
-	// check_addr(file_name);
-	// fn_copy = palloc_get_page (0);
-	// if (fn_copy == NULL)
-	// {
-	// 	syscall_abnormal_exit(-1);
-	// 	return -1;
-	// }
-	// strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
-	// if (process_exec (fn_copy) < 0) {
-	// 	syscall_abnormal_exit(-1);
-	// }
+	check_addr(file_name);
+	fn_copy = palloc_get_page (0); 
+
+	if (fn_copy == NULL)
+	{
+		syscall_abnormal_exit(-1);
+		palloc_free_page(fn_copy);
+		return -1;
+	}
+	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
+	if (process_exec (fn_copy) < 0) {
+		palloc_free_page(fn_copy);
+		syscall_abnormal_exit(-1);
+	}
     return 0;
 
-}
+
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){

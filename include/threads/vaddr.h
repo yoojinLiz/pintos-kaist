@@ -17,7 +17,7 @@
 /* Page offset (bits 0:12). */
 #define PGSHIFT 0                          /* Index of first offset bit. */
 #define PGBITS  12                         /* Number of offset bits. */
-#define PGSIZE  (1 << PGBITS)              /* Bytes in a page. */
+#define PGSIZE  (1 << PGBITS)              /* Bytes in a page. 2^12 = 4 Kib */ 
 #define PGMASK  BITMASK(PGSHIFT, PGBITS)   /* Page offset bits (0:12). */
 
 /* Offset within a page. */
