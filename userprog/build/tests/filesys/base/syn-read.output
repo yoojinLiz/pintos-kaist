@@ -1,0 +1,95 @@
+Kernel command line: -q -f put syn-read put child-syn-read run syn-read
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  78,540,800 loops/s.
+hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 225 sector (112 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+Formatting file system...done.
+Boot complete.
+Putting 'syn-read' into the file system...
+Putting 'child-syn-read' into the file system...
+Executing 'syn-read':
+(syn-read) begin
+(syn-read) create "data"
+(syn-read) open "data"
+(syn-read) write "data"
+(syn-read) close "data"
+do_fork 완료 될 때까지 대기 중 =============================
+_do_fork_current tid = 4
+_do_fork_parent tid = 3
+유저 가상주소(va)는? 0x400000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a21000
+parent tid 3
+current tid 4
+parent pml4 = 0x8004241000
+parent pte = 0x8004244000
+유저 가상주소(va)는? 0x401000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a22000
+parent tid 3
+current tid 4
+parent pml4 = 0x8004241000
+parent pte = 0x8004244008
+유저 가상주소(va)는? 0x402000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a23000
+parent tid 3
+current tid 4
+parent pml4 = 0x8004241000
+parent pte = 0x8004244010
+유저 가상주소(va)는? 0x403000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a24000
+parent tid 3
+current tid 4
+parent pml4 = 0x8004241000
+parent pte = 0x8004244018
+유저 가상주소(va)는? 0x404000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a25000
+parent tid 3
+current tid 4
+parent pml4 = 0x8004241000
+parent pte = 0x8004244020
+(syn-read) exec child 1 of 10: "child-syn-read 0"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 2 of 10: "child-syn-read 1"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 3 of 10: "child-syn-read 2"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 4 of 10: "child-syn-read 3"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 5 of 10: "child-syn-read 4"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 6 of 10: "child-syn-read 5"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 7 of 10: "child-syn-read 6"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 8 of 10: "child-syn-read 7"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 9 of 10: "child-syn-read 8"
+do_fork 완료 될 때까지 대기 중 =============================
+(syn-read) exec child 10 of 10: "child-syn-read 9"
+(syn-read) wait for child 1 of 10 returned 4 (expected 0)
+(syn-read) wait for child 1 of 10 returned 4 (expected 0): FAILED
+syn-read: exit(1)
+유저 가상주소(va)는? 0x405000 ---유저가상주소(va)와 연결된 커널의 주소 0
+child-syn-read: exit(0)
+_do_fork_current tid = 11
+_do_fork_parent tid = -858993460
+Page fault at 0: not present error reading page in kernel context.
+Interrupt 0x0e (#PF Page-Fault Exception) at rip=800420cb96
+ cr2=0000000000000000 error=               0
+rax 0000000000000000 rbx 0000000000000000 rcx 0000008004241000 rdx 0000000000000000
+rsp 0000008004252ea0 rbp 0000008004252ed0 rsi 000000800421b7fd rdi 0000000000000000
+rip 000000800420cb96 r8 0000008004252df8  r9 000000800421b4fe r10 0000000000000000
+r11 0000000000000000 r12 0000000000000000 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000246
+es: 0010 ds: 0010 cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:99 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217f61 0x800421cda4 0x800421cf47 0x8004208fd7 0x80042093f5 0x800421badd 0x8004207415.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 84 ticks
+Thread: 30 idle ticks, 30 kernel ticks, 24 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 138 reads, 504 writes
+hd1:0: 225 reads, 0 writes
+Console: 4370 characters output
+Key

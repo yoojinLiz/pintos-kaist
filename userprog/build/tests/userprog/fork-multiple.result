@@ -1,0 +1,168 @@
+FAIL
+Test output failed to match any acceptable form.
+
+Acceptable output:
+  (fork-multiple) begin
+  (fork-multiple) child run
+  child: exit(4)
+  (fork-multiple) Parent: child exit status is 4
+  (fork-multiple) child run
+  child: exit(5)
+  (fork-multiple) Parent: child exit status is 5
+  (fork-multiple) child run
+  child: exit(6)
+  (fork-multiple) Parent: child exit status is 6
+  (fork-multiple) child run
+  child: exit(7)
+  (fork-multiple) Parent: child exit status is 7
+  (fork-multiple) end
+  fork-multiple: exit(0)
+Differences in `diff -u' format:
+  (fork-multiple) begin
+- (fork-multiple) child run
+- child: exit(4)
++ do_fork 완료 될 때까지 대기 중 =============================
+  (fork-multiple) Parent: child exit status is 4
+- (fork-multiple) child run
+- child: exit(5)
+- (fork-multiple) Parent: child exit status is 5
+- (fork-multiple) child run
+- child: exit(6)
+- (fork-multiple) Parent: child exit status is 6
+- (fork-multiple) child run
+- child: exit(7)
+- (fork-multiple) Parent: child exit status is 7
+- (fork-multiple) end
+- fork-multiple: exit(0)
++ do_fork 완료 될 때까지 대기 중 =============================
++ (fork-multiple) Parent: child exit status is 4
++ do_fork 완료 될 때까지 대기 중 =============================
++ _do_fork_current tid = 4
++ _do_fork_parent tid = 3
++ 유저 가상주소(va)는? 0x400000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a21000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244000
++ 유저 가상주소(va)는? 0x401000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a22000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244008
++ 유저 가상주소(va)는? 0x402000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a23000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244010
++ 유저 가상주소(va)는? 0x403000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a24000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244018
++ 유저 가상주소(va)는? 0x404000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a25000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244020
++ 유저 가상주소(va)는? 0x604000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a26000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245020
++ 유저 가상주소(va)는? 0x605000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a27000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245028
++ 유저 가상주소(va)는? 0x4747f000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a28000
++ parent tid 3
++ current tid 4
++ parent pml4 = 0x8004241000
++ parent pte = 0x80042473f8
++ 유저 가상주소(va)는? 0x8004000000 ---child: exit(0)
++ _do_fork_current tid = 5
++ _do_fork_parent tid = 3
++ 유저 가상주소(va)는? 0x400000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a21000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244000
++ 유저 가상주소(va)는? 0x401000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a22000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244008
++ 유저 가상주소(va)는? 0x402000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a23000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244010
++ 유저 가상주소(va)는? 0x403000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a24000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244018
++ 유저 가상주소(va)는? 0x404000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a25000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244020
++ 유저 가상주소(va)는? 0x604000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a26000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245020
++ 유저 가상주소(va)는? 0x605000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a27000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245028
++ 유저 가상주소(va)는? 0x4747f000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a28000
++ parent tid 3
++ current tid 5
++ parent pml4 = 0x8004241000
++ parent pte = 0x80042473f8
++ 유저 가상주소(va)는? 0x8004000000 ---child: exit(0)
++ _do_fork_current tid = 6
++ _do_fork_parent tid = 3
++ 유저 가상주소(va)는? 0x400000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a21000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244000
++ 유저 가상주소(va)는? 0x401000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a22000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244008
++ 유저 가상주소(va)는? 0x402000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a23000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244010
++ 유저 가상주소(va)는? 0x403000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a24000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244018
++ 유저 가상주소(va)는? 0x404000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a25000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004244020
++ 유저 가상주소(va)는? 0x604000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a26000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245020
++ 유저 가상주소(va)는? 0x605000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a27000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x8004245028
++ 유저 가상주소(va)는? 0x4747f000 ---유저가상주소(va)와 연결된 커널의 주소 0x8004a28000
++ parent tid 3
++ current tid 6
++ parent pml4 = 0x8004241000
++ parent pte = 0x80042473f8
++ (fork-multiple) Parent: child exit status is 4

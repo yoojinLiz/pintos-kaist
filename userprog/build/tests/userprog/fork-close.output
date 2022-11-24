@@ -1,0 +1,44 @@
+Kernel command line: -q -f put fork-close put sample.txt run fork-close
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  78,540,800 loops/s.
+hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 110 sector (55 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+Formatting file system...done.
+Boot complete.
+Putting 'fork-close' into the file system...
+Putting 'sample.txt' into the file system...
+Executing 'fork-close':
+(fork-close) begin
+(fork-close) open "sample.txt"
+do_fork 완료 될 때까지 대기 중 =============================
+(fork-close) Parent success
+(fork-close) end
+fork-close: exit(0)
+_do_fork_current tid = 4
+_do_fork_parent tid = 3
+Page fault at 0: not present error reading page in kernel context.
+Interrupt 0x0e (#PF Page-Fault Exception) at rip=800420cb96
+ cr2=0000000000000000 error=               0
+rax 0000000000000000 rbx 0000000000000000 rcx 0000008004240000 rdx 0000000000000000
+rsp 0000008004248ea0 rbp 0000008004248ed0 rsi 000000800421b7fd rdi 0000000000000000
+rip 000000800420cb96 r8 0000008004248df8  r9 000000800421b4fe r10 0000000000000000
+r11 0000000000000000 r12 0000000000000000 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000246
+es: 0010 ds: 0010 cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:99 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004217f61 0x800421cda4 0x800421cf47 0x8004208fd7 0x80042093f5 0x800421badd 0x8004207415.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 64 ticks
+Thread: 30 idle ticks, 27 kernel ticks, 7 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 123 reads, 258 writes
+hd1:0: 110 reads, 0 writes
+Console: 1989 characters output
+Key
