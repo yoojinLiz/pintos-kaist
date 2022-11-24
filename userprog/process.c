@@ -199,28 +199,22 @@ __do_fork (void *aux) {
 	struct intr_frame *parent_if;
 	bool succ = true;
 
-	// printf("do_fork 들어왔다=====================================\n");
 	
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-	// printf("1 =====================================\n");
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
-	// printf("2 =====================================\n");
 	process_activate (current);
-	// printf("3 =====================================\n");
 #ifdef VM
 	supplemental_page_table_init (&current->spt);
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
-	// printf("4 =====================================\n");
 	//현재 아래 if문을 통해 error로 들어가고, print(6)찍고 child: exit(0)으로 종료됨
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) 
 		goto error;
-	// printf("4-1 =====================================\n");
 #endif
 
 	/* TODO: Your code goes here.
@@ -229,22 +223,15 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 	
-	// printf("process_init 이전===============================\n");
 	process_init ();
-	// printf("process_init 끝===============================\n");
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
-		// printf("5 =====================================\n");
 		intr_set_level (old_level);
-		// printf("do_iret끝===============================\n");
 error:
-	// printf("6 =====================================\n");
 	thread_exit ();
-	// printf("7 =====================================\n");
 	intr_set_level (old_level);
-	// printf("fork 실패=======================================\n");
 }
 
 
