@@ -152,7 +152,7 @@ static void
 paging_init (uint64_t mem_end) {
 	uint64_t *pml4, *pte;
 	int perm;
-	pml4 = base_pml4 = palloc_get_page (PAL_ASSERT | PAL_ZERO);
+	pml4 = base_pml4 = palloc_get_page (PAL_ASSERT | PAL_ZERO); 
 
 	extern char start, _end_kernel_text;
 	// Maps physical address [0 ~ mem_end] to
@@ -172,9 +172,7 @@ paging_init (uint64_t mem_end) {
 	pml4_activate(0);
 }
 
-/* Breaks the kernel command line into words and returns them as an argv-like array. 
- * 
-*/
+/* Breaks the kernel command line into words and returns them as an argv-like array. */
 static char **
 read_command_line (void) {
 	static char *argv[LOADER_ARGS_LEN / 2 + 1];
