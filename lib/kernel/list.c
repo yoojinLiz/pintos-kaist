@@ -529,23 +529,22 @@ int get_count_list(struct list *find_list){
 }
 
 
-bool
-find_all_list(struct list *find_list,int find_tid){
+struct thread*
+find_children_list(struct list *find_list,int find_tid){
 	struct list_elem *curr;
 	struct thread * find_thread;
 
 	if(list_empty(find_list)){
-		return false;
+		return NULL;
 	}
 	curr = list_begin(find_list);
-
 	while (list_end(find_list) != curr)
 	{	
-		find_thread = list_entry (curr, struct thread, all_elem);
+		find_thread = list_entry (curr, struct thread, children_elem);
 		if(find_thread->tid == find_tid){
-			return true;
+			return find_thread;
 		}
 		curr = list_next(curr);	
 	}
-	return false;
+	return NULL;
 }

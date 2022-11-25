@@ -121,23 +121,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
+	
+	
 
-	// if(thread_current()->parent_tid != NULL){
-	// 	return 0;
-	// }
 	sema_down(&fork_sema);
 
 	return pid;
-	// if(thread_current()->parent_tid != NULL && thread_current()->children == NULL){
-		
-	// 	return 0;
-	// }
-
-	// printf("my tid = %d\n",thread_current()->tid);
-	// if(thread_current()->children != NULL){
-	// 	printf("pid = %d\n", pid);
-	// 	return ;
-	// }
 	
 }
 
@@ -212,7 +201,8 @@ __do_fork (void *aux) {
 	struct intr_frame *syscall_if;
 	syscall_if = fork_argv->if_;
 	current->parent_tid = parent->tid;
-	parent->children = current->tid;
+	struct list * children_list = &parent->children_list;
+	list_push_front(children_list,&current->children_elem);
 
 	bool succ = true;
 	/* 1. Read the cpu context to local stack. */
@@ -334,7 +324,7 @@ process_exec (void *f_name) {
 		_if.rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
 		memset(_if.rsp, '\0', k+1);
 		memcpy(_if.rsp, argv[i], k);
-		argv[i]= (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+		argv[i]= (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다.
 	}
 
 	//* word-aligned 해야 함 
@@ -347,7 +337,6 @@ process_exec (void *f_name) {
 	//* 스택에 널포인터 push 
 	_if.rsp -= 8;
 	memset(_if.rsp, 0,8);
-
 
 	//* 스택에 역순으로 push 
 	for (i = argc -1; i>-1; i--) {

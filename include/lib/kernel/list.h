@@ -164,6 +164,6 @@ struct list_elem *list_min (struct list *, list_less_func *, void *aux);
 int find_tid_in_list(struct list *find_list,int find_tid);
 int get_count_list(struct list *find_list);
 
-bool
-find_all_list(struct list *find_list,int find_tid);
+struct thread*
+find_children_list(struct list *find_list,int find_tid);
 #endif /* lib/kernel/list.h */

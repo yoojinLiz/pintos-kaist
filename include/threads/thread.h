@@ -104,13 +104,14 @@ struct thread
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
 
-	struct file *file;				//* 2주차 쓰레드가 직접 연 파일의 포인터
-	short exit_code;				//* 쓰레드가 종료할떄 상태인 exit_code
+	struct file *file;					//* 2주차 쓰레드가 직접 연 파일의 포인터
+	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
 
-	tid_t parent_tid;				//* 2주차 수정 : 부모 프로레스(스레드)의 tid
-	tid_t children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
+	tid_t parent_tid;					//* 2주차 수정 : 부모 프로레스(스레드)의 tid
+	struct list children_list;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
 	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
 	struct list_elem all_elem;
+	struct semaphore fork_sema;
 
 	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
 	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
@@ -190,5 +191,5 @@ int exit_code_dead_child(int tid);
 void syscall_wait_sema_down();
 void syscall_wait_sema_up();
 
-bool check_exist(int pid);
+struct thread* check_exist(int pid);
 #endif /* threads/thread.h */

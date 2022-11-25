@@ -121,8 +121,7 @@ void thread_init(void)
 	list_init(&ready_list);
 	sema_init(&wait_sema,0);
 	list_init(&destruction_req);
-	//* 2주차
-	list_init(&all_list);
+
 
 	//* 1주차 프로젝트 동안 추가한 코드
 	list_init(&sleep_list);
@@ -459,12 +458,11 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->wait_on_lock = NULL;
 	list_init(&t->donations);
 
-
 	//* 2주차 추가
 	t->fd_count = 2;
 	list_init(&t->fd_list);
-	list_push_back(&all_list,&t->all_elem);
-	// list_init(&t->children);
+	list_init(&t->children_list);
+	sema_init(&t->fork_sema,0);
 	
 
 
@@ -834,10 +832,11 @@ void syscall_wait_sema_up(){
 	intr_set_level(old_level);
 }
 
-bool check_exist(int pid){
+struct thread* check_exist(int pid){
 
-	if(list_empty(&all_list)){
-		return false;
+	if(list_empty(&thread_current()->children_list)){
+		return NULL;
 	}
-	return find_all_list(&all_list,pid);
+	
+	return find_children_list(&thread_current()->children_list,pid);
 }
