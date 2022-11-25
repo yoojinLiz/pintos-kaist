@@ -32,6 +32,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -120,6 +121,8 @@ void thread_init(void)
 	list_init(&ready_list);
 	sema_init(&wait_sema,0);
 	list_init(&destruction_req);
+	//* 2주차
+	list_init(&all_list);
 
 	//* 1주차 프로젝트 동안 추가한 코드
 	list_init(&sleep_list);
@@ -460,7 +463,9 @@ init_thread(struct thread *t, const char *name, int priority)
 	//* 2주차 추가
 	t->fd_count = 2;
 	list_init(&t->fd_list);
+	list_push_back(&all_list,&t->all_elem);
 	// list_init(&t->children);
+	
 
 
 	t->exit_code = -2;
@@ -827,4 +832,12 @@ void syscall_wait_sema_up(){
 	old_level = intr_disable();
 	sema_up(&wait_sema);
 	intr_set_level(old_level);
+}
+
+bool check_exist(int pid){
+
+	if(list_empty(&all_list)){
+		return false;
+	}
+	return find_all_list(&all_list,pid);
 }

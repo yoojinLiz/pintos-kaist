@@ -200,6 +200,10 @@ int syscall_exec (struct intr_frame *f){
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
 
+	if(!check_exist(pid)){
+		f->R.rax = -1;
+		return -1;
+	}
 	// check_addr(f->R.rdi);
 	int return_value = 0;
 	if(exit_code_dead_child(pid) != -2){

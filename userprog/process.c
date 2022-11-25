@@ -185,7 +185,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
-	// *? pml4_set_page -> 복사하는 코드?
+
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
 		thread_current()->exit_code = -1;
@@ -206,17 +206,17 @@ static void
 __do_fork (void *aux) {
 	struct intr_frame if_;
 	struct argv *fork_argv =(struct argv*)aux;
-	struct thread *parent = (struct thread*)fork_argv->fork_thread;
+	struct thread *parent = fork_argv->fork_thread;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
-	parent_if = fork_argv->if_;
+	struct intr_frame *syscall_if;
+	syscall_if = fork_argv->if_;
 	current->parent_tid = parent->tid;
 	parent->children = current->tid;
 
 	bool succ = true;
 	/* 1. Read the cpu context to local stack. */
-	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	memcpy (&if_, syscall_if, sizeof (struct intr_frame));
 	if_.R.rax = 0;
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -253,6 +253,8 @@ __do_fork (void *aux) {
 		do_iret (&if_);
 	}
 error:
+	sema_up(&fork_sema);
+	free(fork_argv);
 	thread_exit ();
 }
 
@@ -364,7 +366,7 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-	hex_dump(USER_STACK -1024, USER_STACK -1024,1024,true);
+	// hex_dump(USER_STACK -1024, USER_STACK -1024,1024,true);
 
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
