@@ -225,6 +225,7 @@ tid_t thread_create(const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock(t);
 	test_max_priority();
+	
 
 	return tid;
 }
@@ -462,6 +463,7 @@ init_thread(struct thread *t, const char *name, int priority)
 	list_init(&t->fd_list);
 
 	list_init(&t->children);
+	
 	
 
 }

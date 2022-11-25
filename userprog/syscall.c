@@ -151,8 +151,6 @@ void syscall_exit(struct intr_frame *f){
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
-
-
 	char *file_name = f->R.rdi;
 	// print_values(f,1);
 	return process_fork(file_name, f);
@@ -184,6 +182,7 @@ int syscall_exec (struct intr_frame *f){
     return 0;
 
 }
+
 
 // wait func parameter : pid_t pid
 int syscall_wait (pid_t pid){

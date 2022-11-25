@@ -103,9 +103,14 @@ initd (void *f_name) {
 
 tid_t
 process_fork (const char *name, struct intr_frame *if_) {
-
+	
 // 	/* Clone current thread to new thread.*/
 	struct thread *parent = thread_current();
+
+	sema_init(&parent->fork_sema, 0);
+	
+	parent->tf = *if_;
+
 
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	// parent->tf = *if_;
@@ -119,12 +124,13 @@ process_fork (const char *name, struct intr_frame *if_) {
 		return TID_ERROR;
 	}
 
-	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-	// struct thread *child = get_child_process(pid);
+	struct thread *child = get_child_process(pid);
+	// printf("child tid is %d \n",child->tid);
 
-	old_level = intr_disable ();
-	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
+
+	sema_down(&parent->fork_sema); 
 	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
+
 	return pid;
 
 	// 변경 전
@@ -213,6 +219,7 @@ __do_fork (void *aux) {
 	struct thread *current = thread_current ();
 	struct intr_frame if_;
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+
 	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 	
@@ -247,22 +254,25 @@ __do_fork (void *aux) {
 	
 	copy_fd_list(parent,current);
 
+
 	printf("do_fork6\n");
 	if_.R.rax = 0;
 	process_init ();
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		printf("excute\n");
-		// print_values(&if_,0);
+
+		sema_up(&parent->fork_sema);
+		do_iret (&if_);
+
 		intr_set_level (old_level);
 		do_iret (&if_);
 error:
-	printf("do_fork7\n");
-	intr_set_level (old_level);
+	// printf("에러 발생 시 프린트 \n");
+	sema_up(&parent->fork_sema);
 	thread_exit ();
+
 }
-
-
 
 // //Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
 // // * 2주차 수정 : argument parsing and passing  */
