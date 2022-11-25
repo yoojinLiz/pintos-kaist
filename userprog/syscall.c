@@ -153,7 +153,7 @@ void syscall_exit(struct intr_frame *f){
 pid_t syscall_fork (struct intr_frame *f){
 	char *file_name = f->R.rdi;
 	// print_values(f,1);
-	process_fork(file_name, f);
+	return process_fork(file_name, f);
 }
 
 
@@ -180,6 +180,7 @@ int syscall_exec (struct intr_frame *f){
 		syscall_abnormal_exit(-1);
 	}
     return 0;
+
 }
 
 
