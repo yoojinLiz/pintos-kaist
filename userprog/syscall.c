@@ -11,6 +11,7 @@
 #include "userprog/syscall.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -74,7 +75,7 @@ pid_t syscall_fork (struct intr_frame *f);
 // int syscall_exec (const char *cmd_line);
 int syscall_exec (struct intr_frame *f);
 // wait func parameter : pid_t pid
-int syscall_wait (pid_t pid);
+int syscall_wait (struct intr_frame *f);
 bool syscall_create (struct intr_frame *f);
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f);
@@ -151,9 +152,16 @@ void syscall_exit(struct intr_frame *f){
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
-	char *file_name = f->R.rdi;
-	// print_values(f,1);
-	return process_fork(file_name, f);
+
+
+
+	char * thread_name = f->R.rdi;
+
+	int return_value;
+	return_value = process_fork(thread_name, f);
+
+	f->R.rax = return_value;
+
 }
 
 
@@ -185,12 +193,22 @@ int syscall_exec (struct intr_frame *f){
 
 
 // wait func parameter : pid_t pid
-int syscall_wait (pid_t pid){
-	// thread_set_priority(thread_current()->priority -1);
-	// printf("syscall_wait before current tid = %d\n",thread_current()->tid);
-	// process_wait(pid);
-	// printf("syscall_wait after current tid = %d\n",thread_current()->tid);
-	return 0;
+int syscall_wait (struct intr_frame *f){
+	int pid = f->R.rdi;
+
+	if(!check_exist(pid)){
+		f->R.rax = -1;
+		return -1;
+	}
+	// check_addr(f->R.rdi);
+	int return_value = 0;
+	if(exit_code_dead_child(pid) != -2){
+		f->R.rax = -1;
+		return -1;
+	}
+	return_value = process_wait(pid);
+	f->R.rax = return_value;
+	return return_value;
 }
 
 
