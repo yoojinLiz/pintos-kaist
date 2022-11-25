@@ -182,7 +182,7 @@ int syscall_exec (struct intr_frame *f){
 		syscall_abnormal_exit(-1);
 	}
     return 0;
-
+}
 
 
 // wait func parameter : pid_t pid

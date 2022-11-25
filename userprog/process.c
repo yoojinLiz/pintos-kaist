@@ -98,7 +98,7 @@ initd (void *f_name) {
  * TID_ERROR if the thread cannot be created. */
 
 
-// tid_t
+tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 
 // 	/* Clone current thread to new thread.*/
@@ -115,13 +115,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 		return TID_ERROR;
 	}
 
-	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-	// struct thread *child = get_child_process(pid);
+	struct thread *child = get_child_process(pid);
+	// printf("child tid is %d \n",child->tid);
 
-	old_level = intr_disable ();
-	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
+	sema_down(&child->fork_sema); 
 	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
-	// return pid;
+	return pid;
 
 	// 변경 전
 	// return thread_create (name,
@@ -223,12 +222,11 @@ __do_fork (void *aux) {
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
 
-	printf("_do_fork_current tid = %d\n",current->tid);
+	printf("_do_fork_child(current) tid = %d\n",current->tid);
 	printf("_do_fork_parent tid = %d\n",parent->tid);
 
 	bool succ = true;
 
-	
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
 	/* 2. Duplicate PT */
@@ -257,19 +255,20 @@ __do_fork (void *aux) {
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
 
-
+	printf("테스트\n\n");
 	process_init ();
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		printf("excute\n");
+		sema_up(&current->fork_sema);
 		do_iret (&if_);
 		intr_set_level (old_level);
 error:
+	printf("에러 발생 시 프린트 \n");
+	sema_up(&current->fork_sema);
 	thread_exit ();
 	intr_set_level (old_level);
 }
-
-
 
 // //Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
 // // * 2주차 수정 : argument parsing and passing  */
