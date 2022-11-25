@@ -107,9 +107,6 @@ process_fork (const char *name, struct intr_frame *if_) {
 // 	/* Clone current thread to new thread.*/
 	struct thread *parent = thread_current();
 
-	// printf("===부모 레지스터에는 뭐가 들어있나?\n");
-	// print_values(&if_,0);
-
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	// parent->tf = *if_;
 	memset(&parent->parent_if, 0, sizeof(struct intr_frame));
@@ -127,7 +124,7 @@ process_fork (const char *name, struct intr_frame *if_) {
 
 	old_level = intr_disable ();
 	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
-	// printf("do_fork 완료 될 때까지 대기 중 =============================\n");
+	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
 	return pid;
 
 	// 변경 전
