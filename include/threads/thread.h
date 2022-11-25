@@ -108,7 +108,7 @@ struct thread
 	short exit_code;				//* 쓰레드가 종료할떄 상태인 exit_code
 
 	tid_t parent_tid;				//* 2주차 수정 : 부모 프로레스(스레드)의 tid
-	struct list children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
+	tid_t children;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
 	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
 
 	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
@@ -185,7 +185,7 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-int exit_code_dead_child(struct list_elem *destory_elem);
+int exit_code_dead_child(int tid);
 void syscall_wait_sema_down();
 void syscall_wait_sema_up();
 #endif /* threads/thread.h */

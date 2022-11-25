@@ -25,7 +25,7 @@ pid_t syscall_fork (struct intr_frame *f);
 // int syscall_exec (const char *cmd_line);
 int syscall_exec (struct intr_frame *f);
 // wait func parameter : pid_t pid
-int syscall_wait (pid_t pid);
+int syscall_wait (struct intr_frame *f);
 bool syscall_create (struct intr_frame *f);
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f);

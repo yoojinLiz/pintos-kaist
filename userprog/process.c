@@ -25,6 +25,12 @@
 #include "vm/vm.h"
 #endif
 
+struct argv
+{
+	struct thread * fork_thread;
+	struct intr_fram * if_;
+};
+struct semaphore fork_sema;
 
 
 static void process_cleanup (void);
@@ -32,7 +38,6 @@ static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
 
-enum intr_level old_level;
 
 /* General process initializer for initd and other process. */
 static void
@@ -98,34 +103,42 @@ initd (void *f_name) {
  * TID_ERROR if the thread cannot be created. */
 
 
-// tid_t
+tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 
-// 	/* Clone current thread to new thread.*/
-	struct thread *parent = thread_current();
 
-	parent->tf = *if_;
+	sema_init(&fork_sema,0);
+
+// 	/* Clone current thread to new thread.*/
+	// struct thread *parent = thread_current();
+
+	struct argv *fork_argv = (struct argv *)malloc(sizeof(struct argv));
+
+	fork_argv->fork_thread = thread_current();
+	fork_argv->if_ = if_;
 
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame)); 
-	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
+
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
+
+	// if(thread_current()->parent_tid != NULL){
+	// 	return 0;
+	// }
+	sema_down(&fork_sema);
+
+	return pid;
+	// if(thread_current()->parent_tid != NULL && thread_current()->children == NULL){
+		
+	// 	return 0;
+	// }
+
+	// printf("my tid = %d\n",thread_current()->tid);
+	// if(thread_current()->children != NULL){
+	// 	printf("pid = %d\n", pid);
+	// 	return ;
+	// }
 	
-
-	if(pid == TID_ERROR){
-		return TID_ERROR;
-	}
-
-	// 세마를 해야하긴 하는데 순서가 좀 애매함..(일단 대기)
-	// struct thread *child = get_child_process(pid);
-
-	old_level = intr_disable ();
-	// sema_down(&child->fork_sema); //세마다운하면 터지네..?
-	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
-	// return pid;
-
-	// 변경 전
-	// return thread_create (name,
-	// 		PRI_DEFAULT, __do_fork, thread_current ());
 }
 
 #ifndef VM
@@ -134,76 +147,50 @@ process_fork (const char *name, struct intr_frame *if_) {
 static bool
 duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	struct thread *current = thread_current ();
-	struct thread *parent = (struct thread *) aux;
+	struct argv *fork_argv = (struct argv*)aux;
+	struct thread *parent = (struct thread *)fork_argv->fork_thread;
+
 	void *parent_page;
 	void *newpage;
 	bool writable;
-	// printf("duplicate_pte 시작===========================\n");
-	/* 1. TODO: If the parent_page is kernel page, then return immediately.
-	부모가 현재 커널쪽에 있으면 false
-	 */
-	printf("유저 가상주소(va)는? %p ---", va);
+
+	/* 1. TODO: If the parent_page is kernel page, then return immediately.*/
+	// printf("va addr = %p\n",va);
 	if is_kernel_vaddr(va){
-		// printf("어디니?? 1\n");
-		// printf("%p\n", va);
-		return false;
+		return true;
 	}
-	// printf("!!!!!!!!!!!!!!parent는 name은 %s, id는 %d, 주소는 %p\n", parent->name, parent->tid, parent);
 	
 	/* 2. Resolve VA from the parent's page map level 4. 
 	pml4_get_page는 "물리주소를 찾는 함수"임. 누구의 물리주소를 찾냐면? 유저영역 쪽에 있는 가상주소 va(부모스레드)의 물리주소를 찾는 것.
 	pml4_get_page가 리턴하는 거는 "커널주소"를 리턴한다. 어떤 커널주소를 리턴하냐면? 찾은 물리주소와 연결된 커널의 주소를 리턴함.
 	즉 va의 물리주소를 찾아서 그 물리주소와 연결 되어있는 커널주소를 반환하는 함수임. if)물리주소가 매핑 안되어있으면 NULL반환 */
-	
+
 	parent_page = pml4_get_page (parent->pml4, va);
-	printf("유저가상주소(va)와 연결된 커널의 주소 %p\n", parent_page);
-	//parent_page에는 유저영역(va)와 연결된 커널의 주소가 들어있다.
 	if (parent_page == NULL){ 
-		// printf("어디니?? 2\n");
 		return false;
 	}
 
-
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to NEWPAGE.*/
-  	printf("parent tid %d\n",parent->tid);
-	printf("current tid %d\n",current->tid);
-	printf("parent pml4 = %p\n",parent->pml4);
-	printf("parent pte = %p\n",pte);
-
-
 	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
 	/*페이지를 할당 받을 건데 PAL_USER플레그를 줌으로써 유저가 쓸 수 있는 메모리 pool에서 페이지를 가져올거고
 	PAL_ZERO를 씀으로써 할당받은 페이지 메모리를 0으로 초기화 할 거임.
 	https://casys-kaist.github.io/pintos-kaist/appendix/memory_allocation.html 참고*/
 
-
-	if (newpage == NULL){ //페이지가 할당 안됐으면 false
-		// printf("어디니?? 3\n");
-		return false;
-	}
-
-
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
-
-
-	// parent가 시작하는 커널의 주소부터 parent_page의 크기만큼 newpage로 복사 중
-	// memcpy(newpage, parent_page, sizeof(parent_page));  
 	memcpy(newpage, parent_page, PGSIZE);  
-	// printf("sizeof(parent_page)일때 -> %d / PGZIE로 했을때 %d\n", parent_page, PGSIZE);
-	writable = is_writable(pte); //PTE가 가리키는 가상주소가 작성 가능한 지(wriatable) 아닌 지 확인합니다.
+	writable = is_writable(pte);
 
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
+	// *? pml4_set_page -> 복사하는 코드?
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
-
-		// printf("어디니?? 4\n");
-		return false;
+		thread_current()->exit_code = -1;
+		thread_exit();
 	}
-	// printf("duplicate_pte 끝============================\n");
 
 	return true;
 }
@@ -218,33 +205,34 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 static void
 __do_fork (void *aux) {
 	struct intr_frame if_;
-	struct thread *parent = (struct thread *) aux;
+	struct argv *fork_argv =(struct argv*)aux;
+	struct thread *parent = (struct thread*)fork_argv->fork_thread;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
-
-	printf("_do_fork_current tid = %d\n",current->tid);
-	printf("_do_fork_parent tid = %d\n",parent->tid);
+	parent_if = fork_argv->if_;
+	current->parent_tid = parent->tid;
+	parent->children = current->tid;
 
 	bool succ = true;
-
-	
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	if_.R.rax = 0;
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
 	process_activate (current);
+
 #ifdef VM
 	supplemental_page_table_init (&current->spt);
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
 
-	//현재 아래 if문을 통해 error로 들어가고, print(6)찍고 child: exit(0)으로 종료됨
-	if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) 
+	if (!pml4_for_each (parent->pml4, duplicate_pte, fork_argv)){
 		goto error;
+	} 
 #endif
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
@@ -252,21 +240,20 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
-	
-
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
 
 
 	process_init ();
 	/* Finally, switch to the newly created process. */
-	if (succ)
-		printf("excute\n");
+	if (succ){
+		sema_up(&fork_sema);
+		free(fork_argv);
+		thread_yield();
 		do_iret (&if_);
-		intr_set_level (old_level);
+	}
 error:
 	thread_exit ();
-	intr_set_level (old_level);
 }
 
 
@@ -377,7 +364,7 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-
+	hex_dump(USER_STACK -1024, USER_STACK -1024,1024,true);
 
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
@@ -394,9 +381,9 @@ process_wait (tid_t child_tid) {
 	// 따라서 이 함수가 child_tid가 종료되기를 기다리는 동안 무한루프를 써서 기다리게 한다. 
 	/* The pintos exit if process_wait (initd), 
 	  we recommend you to add infinite loop here before implementing the process_wait. */
-
-	syscall_wait_sema_down();
-
+	if(exit_code_dead_child(child_tid) == -2){
+		syscall_wait_sema_down();
+	}
 	// bool check = false;
 	// while (!check)
 	// {	
@@ -405,10 +392,12 @@ process_wait (tid_t child_tid) {
 	// 	check = check_destory_thread(child_tid);
 	// 	intr_set_level(old_level);
 	// }
-	int exit_code = exit_code_dead_child(child_tid);
 
+
+	int exit_code = exit_code_dead_child(child_tid);
+	// printf("exit code = %d\n",exit_code);
 	// if(exit_code == -2){
-	// 	sema_down(&wait_sema);
+	// 	syscall_wait_sema_down();
 	// }
 
 	return exit_code;
@@ -857,21 +846,21 @@ setup_stack (struct intr_frame *if_) {
 // }  
 
 // 자식 스레드 tid를 가지고 현재 스레드의 children 리스트 검색 - 찾으면 해당 스레드 반환 
-struct thread *get_child_process (tid_t child_tid) {
-	struct list curr = thread_current()->children; 
-	struct list_elem *child ; 
-	struct thread * child_thread;
+// struct thread *get_child_process (tid_t child_tid) {
+// 	struct list curr = thread_current()->children; 
+// 	struct list_elem *child ; 
+// 	struct thread * child_thread;
 
-	if (list_empty(&curr)) {
-		return -1; 
-	}
-	for (child =list_begin(&curr); child!= list_end(&curr); child = list_next(child)) {
-		child_thread = list_entry (child, struct thread, children_elem);
-		if(child_thread->tid == child_tid){
-			return child_thread;
-		}
-	}
-	return NULL; 
+// 	if (list_empty(&curr)) {
+// 		return -1; 
+// 	}
+// 	for (child =list_begin(&curr); child!= list_end(&curr); child = list_next(child)) {
+// 		child_thread = list_entry (child, struct thread, children_elem);
+// 		if(child_thread->tid == child_tid){
+// 			return child_thread;
+// 		}
+// 	}
+// 	return NULL; 
 
 
 	// struct thread *cur = thread_current ();
@@ -883,7 +872,7 @@ struct thread *get_child_process (tid_t child_tid) {
 	// 	}
 	// }
 	// return NULL;
-}
+// }
 
 void copy_fd_list(struct thread* parent,struct thread* child){
 

@@ -219,8 +219,8 @@ tid_t thread_create(const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
-	list_push_back(&thread_current()->children, &t->children_elem); //* 현재스레드의 자식 리스트에 생성중인 스레드를 추가
+	// t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
+	// list_push_back(&thread_current()->children, &t->children_elem); //* 현재스레드의 자식 리스트에 생성중인 스레드를 추가
 
 	/* Add to run queue. */
 	thread_unblock(t);
@@ -460,8 +460,10 @@ init_thread(struct thread *t, const char *name, int priority)
 	//* 2주차 추가
 	t->fd_count = 2;
 	list_init(&t->fd_list);
+	// list_init(&t->children);
 
-	list_init(&t->children);
+
+	t->exit_code = -2;
 	
 
 }
@@ -803,20 +805,20 @@ void refresh_priority(void)
 	}
 }
 
-int exit_code_dead_child(struct list_elem *destory_elem)
+int exit_code_dead_child(int tid)
 {
 
 	if (list_empty(&destruction_req))
 	{
 		return -2;
 	}
-	return find_exit_code(&destruction_req, destory_elem);
+	return find_exit_code(&destruction_req, tid);
 }
 
 void syscall_wait_sema_down(){
 	enum intr_level old_level;
 	old_level = intr_disable();
-	sema_down(&wait_sema);
+	syscall_sema_down(&wait_sema);
 	intr_set_level(old_level);
 }
 
