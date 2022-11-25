@@ -21,6 +21,9 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
+
+#include "include/userprog/syscall.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -107,6 +110,7 @@ tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 
 
+
 	sema_init(&fork_sema,0);
 
 // 	/* Clone current thread to new thread.*/
@@ -114,32 +118,20 @@ process_fork (const char *name, struct intr_frame *if_) {
 
 	struct argv *fork_argv = (struct argv *)malloc(sizeof(struct argv));
 
+
 	fork_argv->fork_thread = thread_current();
 	fork_argv->if_ = if_;
-
-	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
-	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
+  
 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
 
-	// if(thread_current()->parent_tid != NULL){
-	// 	return 0;
-	// }
+	
 	sema_down(&fork_sema);
 
 	return pid;
-	// if(thread_current()->parent_tid != NULL && thread_current()->children == NULL){
-		
-	// 	return 0;
-	// }
-
-	// printf("my tid = %d\n",thread_current()->tid);
-	// if(thread_current()->children != NULL){
-	// 	printf("pid = %d\n", pid);
-	// 	return ;
-	// }
 	
-}
+	}
+
 
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
@@ -154,10 +146,13 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
+
 	/* 1. TODO: If the parent_page is kernel page, then return immediately.*/
 	// printf("va addr = %p\n",va);
 	if is_kernel_vaddr(va){
 		return true;
+
+
 	}
 	
 	/* 2. Resolve VA from the parent's page map level 4. 
@@ -165,16 +160,19 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	pml4_get_page가 리턴하는 거는 "커널주소"를 리턴한다. 어떤 커널주소를 리턴하냐면? 찾은 물리주소와 연결된 커널의 주소를 리턴함.
 	즉 va의 물리주소를 찾아서 그 물리주소와 연결 되어있는 커널주소를 반환하는 함수임. if)물리주소가 매핑 안되어있으면 NULL반환 */
 
+
 	parent_page = pml4_get_page (parent->pml4, va);
-	if (parent_page == NULL){ 
-		return false;
-	}
+
+
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to NEWPAGE.*/
+
+
 	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
 	/*페이지를 할당 받을 건데 PAL_USER플레그를 줌으로써 유저가 쓸 수 있는 메모리 pool에서 페이지를 가져올거고
 	PAL_ZERO를 씀으로써 할당받은 페이지 메모리를 0으로 초기화 할 거임.
 	https://casys-kaist.github.io/pintos-kaist/appendix/memory_allocation.html 참고*/
+
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -183,11 +181,13 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	writable = is_writable(pte);
 
 
+
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
 
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+
 		thread_current()->exit_code = -1;
 		thread_exit();
 	}
@@ -196,33 +196,44 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 }
 #endif
 
-/* A thread function that copies parent's execution context.
- fork할 때 부모프로세스의 context(유전자)를 복사하는 함수
+/* A thread function that copies parent's execution context. fork할 때 부모프로세스의 context(유전자)를 복사하는 함수
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
 
 static void
 __do_fork (void *aux) {
+
 	struct intr_frame if_;
 	struct argv *fork_argv =(struct argv*)aux;
 	struct thread *parent = fork_argv->fork_thread;
+
+
 	struct thread *current = thread_current ();
+	struct intr_frame if_;
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+
 	struct intr_frame *syscall_if;
 	syscall_if = fork_argv->if_;
 	current->parent_tid = parent->tid;
 	parent->children = current->tid;
 
+
+	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
+
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, syscall_if, sizeof (struct intr_frame));
 	if_.R.rax = 0;
+
+	
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
+	
 	process_activate (current);
+
 
 #ifdef VM
 	supplemental_page_table_init (&current->spt);
@@ -231,6 +242,7 @@ __do_fork (void *aux) {
 #else
 
 	if (!pml4_for_each (parent->pml4, duplicate_pte, fork_argv)){
+
 		goto error;
 	} 
 #endif
@@ -241,11 +253,16 @@ __do_fork (void *aux) {
 	 * TODO:       the resources of parent.*/
 
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
+	
+	
 	copy_fd_list(parent,current);
 
 
+	printf("do_fork6\n");
+	if_.R.rax = 0;
 	process_init ();
 	/* Finally, switch to the newly created process. */
+
 	if (succ){
 		sema_up(&fork_sema);
 		free(fork_argv);
@@ -257,6 +274,7 @@ error:
 	free(fork_argv);
 	thread_exit ();
 }
+
 
 
 
@@ -304,6 +322,7 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+
 
 	/* We first kill the current context */
 	process_cleanup ();
@@ -366,7 +385,7 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	/* If load failed, quit. */
 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-	// hex_dump(USER_STACK -1024, USER_STACK -1024,1024,true);
+
 
 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
@@ -877,15 +896,15 @@ setup_stack (struct intr_frame *if_) {
 // }
 
 void copy_fd_list(struct thread* parent,struct thread* child){
-
 	struct list *p_fd_list,*c_fd_list;
 	struct fd * find_fd;
 	struct file * copy_file;
-
+	// printf("============================copy_fd_list시작====================\n");
 	p_fd_list = &parent->fd_list;
 	c_fd_list = &child->fd_list;
 
 	if(list_empty(p_fd_list)){
+		printf("이게 찍히면 부모의 fd_list는 비어있는 상태라는 소리이다.\n");
 		return;
 	}
 
@@ -910,5 +929,4 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 		list_push_back(c_fd_list,&new_fd->elem);
 		cur = list_next(cur);
 	}
-
 }

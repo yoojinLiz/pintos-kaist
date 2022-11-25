@@ -154,18 +154,13 @@ void syscall_exit(struct intr_frame *f){
 pid_t syscall_fork (struct intr_frame *f){
 
 
+
 	char * thread_name = f->R.rdi;
-	// struct intr_frame * parent_tf = (struct intr_frame*)malloc(sizeof(struct intr_frame));
-	// parent_tf = &thread_current()
+
 	int return_value;
 	return_value = process_fork(thread_name, f);
-	// if(thread_current()->parent_tid != NULL){
-	f->R.rax = return_value;
 
-		// return 0;
-	// }
-	// f->R.rax = return_value;
-	// return f->R.rax;
+	f->R.rax = return_value;
 
 }
 
@@ -195,6 +190,7 @@ int syscall_exec (struct intr_frame *f){
     return 0;
 
 }
+
 
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
