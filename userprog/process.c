@@ -100,10 +100,11 @@ initd (void *f_name) {
 
 tid_t
 process_fork (const char *name, struct intr_frame *if_) {
-
+	
 // 	/* Clone current thread to new thread.*/
 	struct thread *parent = thread_current();
-
+	sema_init(&parent->fork_sema, 0);
+	
 	parent->tf = *if_;
 
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
@@ -118,7 +119,7 @@ process_fork (const char *name, struct intr_frame *if_) {
 	struct thread *child = get_child_process(pid);
 	// printf("child tid is %d \n",child->tid);
 
-	sema_down(&child->fork_sema); 
+	sema_down(&parent->fork_sema); 
 	printf("do_fork 완료 될 때까지 대기 중 =============================\n");
 	return pid;
 
@@ -255,17 +256,17 @@ __do_fork (void *aux) {
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
 
-	printf("테스트\n\n");
+	// printf("테스트\n\n");
 	process_init ();
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		printf("excute\n");
-		sema_up(&current->fork_sema);
+		sema_up(&parent->fork_sema);
 		do_iret (&if_);
 		intr_set_level (old_level);
 error:
-	printf("에러 발생 시 프린트 \n");
-	sema_up(&current->fork_sema);
+	// printf("에러 발생 시 프린트 \n");
+	sema_up(&parent->fork_sema);
 	thread_exit ();
 	intr_set_level (old_level);
 }
