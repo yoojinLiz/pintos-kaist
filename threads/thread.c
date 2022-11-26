@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/flags.h"
+#include "threads/malloc.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
@@ -225,7 +226,11 @@ tid_t thread_create(const char *name, int priority,
 
 	t->parent_thread = thread_current();
 	struct list * children_list = &thread_current()->children_list;
-	list_push_back(children_list,&t->children_elem);
+	// list_push_back(children_list,&t->children_elem);
+	struct thread_exit_pack * tep = (struct thread_exit_pack*)malloc(sizeof(struct thread_exit_pack));
+	tep->exit_code = -1;
+	tep->tid = t->tid;
+	list_push_back(children_list,&tep->elem);
 
 	// t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
 	// list_push_back(&thread_current()->children, &t->children_elem); //* 현재스레드의 자식 리스트에 생성중인 스레드를 추가
@@ -840,7 +845,7 @@ int exit_code_dead_child(int tid)
 	
 	if (list_empty(&thread_current()->children_list))
 	{
-		return -2;
+		return -1;
 	}
 	return find_exit_code(&thread_current()->children_list, tid);
 }
@@ -868,11 +873,13 @@ void process_fork_sema_up(){
 	fork_sema_up(&fork_sema);
 }
 
-struct thread* check_exist(int pid){
+// struct thread* check_exist(int pid){
+struct  thread_exit_pack* check_exist(int pid){
+	struct thread* cur = thread_current();
+	struct list* list = &cur->children_list;
 
-	if(list_empty(&thread_current()->children_list)){
+	if(list_empty(list)){
 		return NULL;
 	}
-	
-	return find_children_list(&thread_current()->children_list,pid);
+	return find_children_list(list,pid);
 }

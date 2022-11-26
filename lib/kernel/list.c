@@ -529,10 +529,10 @@ int get_count_list(struct list *find_list){
 }
 
 
-struct thread*
+struct thread_exit_pack*
 find_children_list(struct list *find_list,int find_tid){
 	struct list_elem *curr;
-	struct thread * find_thread;
+	struct thread_exit_pack * find_tep;
 	
 	if(list_empty(find_list)){
 		return NULL;
@@ -540,11 +540,31 @@ find_children_list(struct list *find_list,int find_tid){
 	curr = list_begin(find_list);
 	while (list_end(find_list) != curr)
 	{	
-		find_thread = list_entry (curr, struct thread, children_elem);
-		if(find_thread->tid == find_tid){
-			return find_thread;
+		find_tep = list_entry (curr, struct thread_exit_pack, elem);
+		if(find_tep->tid == find_tid){
+			return find_tep;
 		}
 		curr = list_next(curr);	
 	}
 	return NULL;
 }
+
+// struct thread*
+// find_children_list(struct list *find_list,int find_tid){
+// 	struct list_elem *curr;
+// 	struct thread * find_thread;
+	
+// 	if(list_empty(find_list)){
+// 		return NULL;
+// 	}
+// 	curr = list_begin(find_list);
+// 	while (list_end(find_list) != curr)
+// 	{	
+// 		find_thread = list_entry (curr, struct thread, children_elem);
+// 		if(find_thread->tid == find_tid){
+// 			return find_thread;
+// 		}
+// 		curr = list_next(curr);	
+// 	}
+// 	return NULL;
+// }

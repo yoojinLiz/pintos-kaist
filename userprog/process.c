@@ -124,7 +124,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
+	enum intr_level old_level;
+
+	old_level = intr_disable ();
 	process_fork_sema_down();
+	intr_set_level (old_level);
+
 	return pid;
 }
 
@@ -235,8 +240,14 @@ __do_fork (void *aux) {
 
 
 	if (succ){
-		process_fork_sema_up();
+		// enum intr_level old_level;
+		// old_level = intr_disable ();
+		// process_fork_sema_up();
+
 		free(fork_argv);
+
+		// intr_set_level (old_level);
+
 		thread_yield();
 		do_iret (&if_);
 	}
@@ -373,24 +384,33 @@ process_wait (tid_t child_tid) {
 	
 	struct list* child_list = &thread_current()->children_list;
 	struct list_elem * child_elem;
-	struct thread * child_thread;
+	// struct thread * child_thread;
+	struct thread_exit_pack* child_tep;
 	struct semaphore * sema;
 
-	child_thread = check_exist(child_tid);
+	child_tep = check_exist(child_tid);
 
-	if(child_thread->wait_check){
-		return -1;
-	}
+	// if(child_thread->wait_check){
+	// 	return -1;
+	// }
+	// if(child_tep == NULL){
+	// 	return -1;
+	// }
 
-	sema = &thread_current()->wait_sema;
+	if(child_tep != NULL){
+			sema = &thread_current()->wait_sema;
 	syscall_sema_down(sema);
-
-
-
-	if(child_thread != NULL){
-		int first_exit_code = child_thread->exit_code;
-		return first_exit_code;
 	}
+
+
+
+	int first_exit_code = child_tep->exit_code;
+	child_tep->exit_code = -1;
+	return first_exit_code;
+	// if(child_thread != NULL){
+	// 	int first_exit_code = child_thread->exit_code;
+	// 	return first_exit_code;
+	// }
 	return -1;
 
 }
@@ -401,16 +421,53 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	struct thread *parent = thread_current()->parent_thread;
 
-	// /* TODO: Your code goes here.
-	//  * TODO: Implement process termination message (see
-	//  * TODO: project2/process_termination.html).
-	//  * TODO: We recommend you to implement process resource cleanup here. */
+	enum intr_level old_level;
+	old_level = intr_disable ();
+	process_fork_sema_up();
+	// free(fork_argv);
+	intr_set_level (old_level);
+
+	struct thread_exit_pack * tep2;
+	struct list * children_list2 = &curr->children_list;
+	struct list_elem * elem_cur2;
+
+	elem_cur2 = list_begin(children_list2);
+
+	while (elem_cur2 != list_end(children_list2))
+	{
+		tep2 = list_entry(elem_cur2,struct thread_exit_pack,elem);
+		list_remove(&tep2->elem);
+		free(tep2);
+		elem_cur2 = list_next(elem_cur2);
+	}
+
+
+	/* TODO: Your code goes here.
+	 * TODO: Implement process termination message (see
+	 * TODO: project2/process_termination.html).
+	 * TODO: We recommend you to implement process resource cleanup here. */
 	if(curr->pml4 > KERN_BASE)
 		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
 
 	close_all_file();
-	curr->dead = true;
 	syscall_sema_up(&parent->wait_sema);
+
+	struct thread_exit_pack * tep;
+	struct list * children_list = &parent->children_list;
+	struct list_elem * elem_cur;
+
+	elem_cur = list_begin(children_list);
+	int curr_tid = curr->tid;
+
+	while (elem_cur != list_end(children_list))
+	{
+		tep = list_entry(elem_cur,struct thread_exit_pack,elem);
+		if(tep->tid == curr->tid){
+			// remove(&tep->elem);
+			tep->exit_code = curr->exit_code;
+		}
+		elem_cur = list_next(elem_cur);
+	}
 	process_cleanup ();
 }
 
@@ -447,7 +504,6 @@ void
 process_activate (struct thread *next) {
 	/* Activate thread's page tables. */
 	pml4_activate (next->pml4);
-
 	/* Set thread's kernel stack for use in processing interrupts. */
 	tss_update (next);
 }

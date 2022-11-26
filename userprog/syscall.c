@@ -193,33 +193,22 @@ int syscall_exec (struct intr_frame *f){
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
 
-	struct thread * check_thread = check_exist(pid);
+	// struct thread * check_thread = check_exist(pid);
+	struct thread_exit_pack * tep = check_exist(pid);
 
-	if(check_thread == NULL){
-		// printf("none\n");
+	if(tep == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
 
-	// if(check_thread->dead){
-	// 	// printf("done-job\n");
-	// 	f->R.rax = -1;
-	// 	return -1;
-	// }
-	// printf("done-job\n");
-	// printf("first pass\n");
-	// check_addr(f->R.rdi);
-	int return_value = 0;
+	
 
-	// if(check_thread->exit_code != -2){
-	// 	// f->R.rax = check_thread->exit_code;
-	// 	f->R.rax = -1;
-	// 	// return check_thread->exit_code;
-	// 	return -1;
-	// }
-	// printf("second pass\n");
+	int return_value = 0;
 	return_value = process_wait(pid);
-	check_thread->wait_check = true;
+
+	list_remove(&tep->elem);
+	free(tep);
+
 	f->R.rax = return_value;
 	return return_value;
 }

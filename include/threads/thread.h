@@ -23,6 +23,14 @@ enum thread_status
 	THREAD_DYING	/* About to be destroyed. */
 };
 
+struct thread_exit_pack
+{
+	uint32_t tid;
+	int exit_code;
+	struct list_elem elem;
+
+};
+
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
@@ -103,8 +111,6 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-
-	struct file *file;					//* 2주차 쓰레드가 직접 연 파일의 포인터
 	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
 
 	struct thread * parent_thread;					//* 2주차 수정 : 부모 프로레스(스레드)의 tid
@@ -114,8 +120,6 @@ struct thread
 	struct list_elem fork_elem;
 	struct list_elem wait_elem;
 	int wait_number;
-	bool dead;
-	bool wait_check;
 	struct semaphore wait_sema;
 
 
@@ -201,7 +205,8 @@ void syscall_wait_sema_up();
 void process_fork_sema_down();
 void process_fork_sema_up();
 
-struct thread* check_exist(int pid);
+// struct thread* check_exist(int pid);
+struct thread_exit_pack* check_exist(int pid);
 int
 find_exit_code(struct list *find_list,int find_tid);
 void thread_unblock_custom(struct thread *t);
