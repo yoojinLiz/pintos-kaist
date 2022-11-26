@@ -37,7 +37,6 @@ struct sema_tid
 	struct list_elem sema_list_elem;
 	int child_tid;
 };
-static struct semaphore wait_sema;
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -203,9 +202,6 @@ __do_fork (void *aux) {
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *syscall_if;
 	syscall_if = fork_argv->if_;
-	// current->parent_tid = parent->tid;
-	// struct list * children_list = &parent->children_list;
-	// list_push_front(children_list,&current->children_elem);
 
 	bool succ = true;
 	/* 1. Read the cpu context to local stack. */
@@ -224,6 +220,8 @@ __do_fork (void *aux) {
 #else
 
 	if (!pml4_for_each (parent->pml4, duplicate_pte, fork_argv)){
+		thread_current()->exit_code = -1;
+		thread_exit();
 		goto error;
 	} 
 #endif
@@ -235,63 +233,19 @@ __do_fork (void *aux) {
 
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
+
 	process_init ();
 	/* Finally, switch to the newly created process. */
 
-
 	if (succ){
-		// enum intr_level old_level;
-		// old_level = intr_disable ();
-		// process_fork_sema_up();
-
 		free(fork_argv);
-
-		// intr_set_level (old_level);
-
-		thread_yield();
+		// thread_yield();
 		do_iret (&if_);
 	}
 error:
-	// process_fork_sema_up();
 	free(fork_argv);
 	thread_exit ();
 }
-
-
-
-// //Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
-// // * 2주차 수정 : argument parsing and passing  */
-// int
-// process_exec (void *f_name) { // 
-// 	char *file_name;	
-// 	bool success;
-
-// 	/* We cannot use the intr_frame in the thread structure.
-// 	 * This is because when current thread rescheduled,
-// 	 * it stores the execution information to the member. */
-// 	struct intr_frame _if;
-// 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
-// 	_if.cs = SEL_UCSEG;
-// 	_if.eflags = FLAG_IF | FLAG_MBS;
-
-// 	/* We first kill the current context */
-// 	process_cleanup ();
-
-// 	file_name = argument_parsing(f_name, &_if); 
-
-// 	/* And then load the binary */
-// 	success = load (file_name, &_if);
-
-// 	if (!success)
-// 		return -1;
-	
-// 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-
-// 	/* Start switched process. */
-// 	/* If load failed, quit. */
-// 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
-// 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
-// }
 
 
 int
@@ -390,28 +344,15 @@ process_wait (tid_t child_tid) {
 
 	child_tep = check_exist(child_tid);
 
-	// if(child_thread->wait_check){
-	// 	return -1;
-	// }
-	// if(child_tep == NULL){
-	// 	return -1;
-	// }
-
 	if(child_tep != NULL){
-			sema = &thread_current()->wait_sema;
-	syscall_sema_down(sema);
+		sema = &thread_current()->wait_sema;
+		syscall_sema_down(sema);
 	}
-
-
 
 	int first_exit_code = child_tep->exit_code;
 	child_tep->exit_code = -1;
+
 	return first_exit_code;
-	// if(child_thread != NULL){
-	// 	int first_exit_code = child_thread->exit_code;
-	// 	return first_exit_code;
-	// }
-	return -1;
 
 }
 
@@ -421,11 +362,17 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	struct thread *parent = thread_current()->parent_thread;
 
+		if(curr->pml4 > KERN_BASE)
+			printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
+
 	enum intr_level old_level;
 	old_level = intr_disable ();
+	close_all_file();
+	syscall_sema_up(&parent->wait_sema);
 	process_fork_sema_up();
-	// free(fork_argv);
 	intr_set_level (old_level);
+
+	// free(fork_argv);
 
 	struct thread_exit_pack * tep2;
 	struct list * children_list2 = &curr->children_list;
@@ -446,11 +393,7 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	if(curr->pml4 > KERN_BASE)
-		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
 
-	close_all_file();
-	syscall_sema_up(&parent->wait_sema);
 
 	struct thread_exit_pack * tep;
 	struct list * children_list = &parent->children_list;
@@ -845,92 +788,6 @@ setup_stack (struct intr_frame *if_) {
 #endif /* VM */
 
 
-
-// * 수정 나중에 yj가 수정하기로함 ^^
-// char * argument_parsing (char *f_name, struct intr_frame *_if) {
-// 	int *argv[LOADER_ARGS_LEN / 2 + 1];
-// 	char *token , *save_ptr, *file_name;	
-// 	int argc , i, k;
-// 	file_name = strtok_r (f_name, " ", &save_ptr);
-// 	argv[0] = file_name; 
-// 	// printf("argv[0]는 %s\n\n", argv[0]);
-
-// 	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
-// 	argc = 1 ;
-// 	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-// 		argv[argc] = token; // token 문자열의 시작지점 
-// 		argc ++;
-// 		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
-// 	}
-	
-// 	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
-// 	for (i = argc-1; i>-1; i--) {
-// 		k = strlen(argv[i]);
-// 		printf("rsp 주소는 %p \n", _if->rsp);
-// 		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
-
-// 		memset(_if->rsp, '\0', k+1); // 
-// 		memcpy(_if->rsp, argv[i], k);
-// 		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
-// 	}
-
-// 	//* word-aligned 해야 함 
-// 	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-// 		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-// 		_if->rsp -= pad ; // 포인터를 내리고
-// 		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
-// 	}
-
-// 	//* 스택에 널포인터 push 
-// 	_if->rsp -= 8;
-// 	memset(_if->rsp, 0,8);
-
-
-// 	//* 스택에 역순으로 push 
-// 	for (i = argc -1; i>-1; i--) {
-// 		_if->rsp -=8 ; 
-// 		memcpy(_if->rsp, &argv[i], 8) ; 
-// 	}
-// 	_if->R.rdi = argc ; 
-// 	_if->R.rsi = _if->rsp ; 
-
-// 	// //* 스택에 fake return address 인 0 push 
-// 	_if->rsp -= 8;
-// 	memset(_if->rsp, 0,8);
-// 	hex_dump(_if->rsp, _if->rsp, 100, true);
-
-// 	return file_name; 
-// }  
-
-// 자식 스레드 tid를 가지고 현재 스레드의 children 리스트 검색 - 찾으면 해당 스레드 반환 
-// struct thread *get_child_process (tid_t child_tid) {
-// 	struct list curr = thread_current()->children; 
-// 	struct list_elem *child ; 
-// 	struct thread * child_thread;
-
-// 	if (list_empty(&curr)) {
-// 		return -1; 
-// 	}
-// 	for (child =list_begin(&curr); child!= list_end(&curr); child = list_next(child)) {
-// 		child_thread = list_entry (child, struct thread, children_elem);
-// 		if(child_thread->tid == child_tid){
-// 			return child_thread;
-// 		}
-// 	}
-// 	return NULL; 
-
-
-	// struct thread *cur = thread_current ();
-	// struct list *child_list = &cur->children;
-	// for (struct list_elem *e = list_begin(child_list); e != list_end(child_list); e = list_next(e)){
-	// 	struct thread *t = list_entry(e, struct thread, children_elem);
-	// 	if (t->tid == child_tid) {
-	// 		return t;
-	// 	}
-	// }
-	// return NULL;
-// }
-
 void copy_fd_list(struct thread* parent,struct thread* child){
 
 	struct list *p_fd_list,*c_fd_list;
@@ -947,23 +804,25 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 	struct list_elem * cur;
 	
 	cur = list_begin(p_fd_list);
-
 	while (cur != list_end(p_fd_list))
 	{	
-		// 구조체 생성
-		struct fd *new_fd = (struct fd*)malloc(sizeof(struct fd));
-		// fd 로 변환
+
 		find_fd = list_entry(cur, struct fd, elem);
-		// 파일 복사
 		copy_file = file_duplicate(find_fd->file);
-		// 입력
-		new_fd->file = copy_file;
-		new_fd->value = child->fd_count + 1;
-		// fd값 증가
-		child->fd_count +=1;
+		if(copy_file != NULL){
+			struct fd *new_fd = (struct fd*)malloc(sizeof(struct fd));
+			new_fd->file = copy_file;
+			// new_fd->value = parent.fd + 1;
+			new_fd->value = find_fd->value;
+			// child->fd_count = parent->fd_count;
+			child->fd_count +=1;
+			list_push_front(c_fd_list,&new_fd->elem);
 
-		list_push_back(c_fd_list,&new_fd->elem);
+		}
 		cur = list_next(cur);
-	}
 
+		if(cur == list_end(p_fd_list)){
+			return;
+		}
+	}
 }

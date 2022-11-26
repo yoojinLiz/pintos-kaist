@@ -152,7 +152,7 @@ void syscall_exit(struct intr_frame *f){
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
-
+	printf("i will fork %d\n",thread_current()->tid);
 	char * thread_name = f->R.rdi;
 	int return_value;
 	return_value = process_fork(thread_name, f);
@@ -201,14 +201,14 @@ int syscall_wait (struct intr_frame *f){
 		return -1;
 	}
 
-	
-
 	int return_value = 0;
+	printf("i am %d i will wait %d \n",thread_current()->tid,pid);
 	return_value = process_wait(pid);
 
 	list_remove(&tep->elem);
 	free(tep);
 
+	// printf("here\n");
 	f->R.rax = return_value;
 	return return_value;
 }
@@ -246,6 +246,10 @@ int syscall_open (struct intr_frame *f){
 	struct file *open_file;
 	struct list * fd_list;
 
+	if(thread_current()->fd_count == 20){
+		f->R.rax = -1;
+		return -1;
+	}
 
 	fd_list = &thread_current()->fd_list;
 	check_addr(f->R.rdi);
@@ -255,7 +259,9 @@ int syscall_open (struct intr_frame *f){
 		f->R.rax = -1;
 		return -1;
 	}
-	
+
+
+
 	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
 
 	fd->value = thread_current()->fd_count + 1;

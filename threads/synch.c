@@ -461,9 +461,9 @@ fork_sema_up (struct semaphore *sema) {
 	struct list * waiter;
 	struct list_elem * find_elem;
 	struct thread* find_thread;
-	// struct thread* parent_thread;
-	// parent_thread = thread_current()->parent_thread;
-	// int parent_tid = parent_thread->tid;
+	struct thread* parent_thread;
+	parent_thread = thread_current()->parent_thread;
+	int parent_tid = parent_thread->tid;
 
 	waiter = &sema->waiters;
 	old_level = intr_disable ();
@@ -493,7 +493,7 @@ fork_sema_down (struct semaphore *sema) {
 	while (sema->value == 0) {
 		list_push_front (&sema->waiters, &thread_current ()->fork_elem);
 		thread_block ();
-	} 
+	}
 	sema->value--;
 	intr_set_level (old_level);
 }

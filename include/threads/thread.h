@@ -119,13 +119,7 @@ struct thread
 	struct list_elem sema_elem;
 	struct list_elem fork_elem;
 	struct list_elem wait_elem;
-	int wait_number;
 	struct semaphore wait_sema;
-
-
-	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
-	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
-
 
 	int fd_count;
 	struct list fd_list;
