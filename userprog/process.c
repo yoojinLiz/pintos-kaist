@@ -400,34 +400,17 @@ process_wait (tid_t child_tid) {
 	// 따라서 이 함수가 child_tid가 종료되기를 기다리는 동안 무한루프를 써서 기다리게 한다. 
 	/* The pintos exit if process_wait (initd), 
 	  we recommend you to add infinite loop here before implementing the process_wait. */
-	if(exit_code_dead_child(child_tid) == -2){
-		syscall_wait_sema_down();
+
+	for (int i = 0; i< 1000000000; i++){
+
 	}
-	// bool check = false;
-	// while (!check)
-	// {	
-	// 	enum intr_level old_level;
-	// 	old_level = intr_disable();
-	// 	check = check_destory_thread(child_tid);
-	// 	intr_set_level(old_level);
-	// }
-
-
-	int exit_code = exit_code_dead_child(child_tid);
-	// printf("exit code = %d\n",exit_code);
-	// if(exit_code == -2){
-	// 	syscall_wait_sema_down();
-	// }
-
-	return exit_code;
+	return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-
-
 	// /* TODO: Your code goes here.
 	//  * TODO: Implement process termination message (see
 	//  * TODO: project2/process_termination.html).

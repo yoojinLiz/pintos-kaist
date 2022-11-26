@@ -118,7 +118,6 @@ struct thread
 	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
 	
 	struct intr_frame parent_if; // _fork() 구현 때 사용, __do_fork() 함수
-	struct file* fd_table[10]; 
 
 	int fd_count;
 	struct list fd_list;

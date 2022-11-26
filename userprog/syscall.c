@@ -140,6 +140,7 @@ syscall_handler (struct intr_frame *f) {
 // syscall function
 
 void syscall_halt(void){
+	//핀토스 전체를 종료.
 	power_off();	
 }
 
@@ -168,170 +169,51 @@ pid_t syscall_fork (struct intr_frame *f){
 // exec func parameter : const char *cmd_line
 // int syscall_exec (const char *cmd_line){
 int syscall_exec (struct intr_frame *f){
-   //! 지금까지 exec 안되던 이유 = palloc_get_page함수 호출하면서 palloc.h 파일 include 안해서.. 
-   //! 저부터 머리 박습니다.. - yj 
-	char *file_name = f->R.rdi;
-	char *fn_copy ;
-
-	check_addr(file_name);
-	fn_copy = palloc_get_page (0); 
-
-	if (fn_copy == NULL)
-	{
-		syscall_abnormal_exit(-1);
-		palloc_free_page(fn_copy);
-		return -1;
-	}
-	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
-	if (process_exec (fn_copy) < 0) {
-		palloc_free_page(fn_copy);
-		syscall_abnormal_exit(-1);
-	}
-    return 0;
 
 }
 
 
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
-	int pid = f->R.rdi;
 
-	if(!check_exist(pid)){
-		f->R.rax = -1;
-		return -1;
-	}
-	// check_addr(f->R.rdi);
-	int return_value = 0;
-	if(exit_code_dead_child(pid) != -2){
-		f->R.rax = -1;
-		return -1;
-	}
-	return_value = process_wait(pid);
-	f->R.rax = return_value;
-	return return_value;
 }
 
 
 bool syscall_create (struct intr_frame *f){
-	bool success;
-
-	check_addr(f->R.rdi);
-
-	if(f->R.rdi == NULL){
-		syscall_abnormal_exit(-1);
+	char * file = f->R.rdi;
+	int size = f->R.rsi;
+	// printf("rax %d!!!, rdi %s!!!, rsi %d!!!\n",f->R.rax, f->R.rdi, f->R.rsi);
+	if (filesys_create(file, size)){
+		return true;
+	}else{
+		return false;
 	}
-	success = filesys_create(f->R.rdi,f->R.rsi);
-	f->R.rax = success;
-	return success;
+	
 }
 
 
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
-	bool success ; 
-	char* file = f->R.rdi ; // rdi : 파일 이름   
-	check_addr(file); 
-	success = filesys_remove(file);
-	f->R.rax = success; 
-	return success;
+	print_values(f,2);
+	
 }
 
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
 
-	struct file *open_file;
-	struct list * fd_list;
-	struct ELF64_hdr ehdr;
-
-	fd_list = &thread_current()->fd_list;
-	check_addr(f->R.rdi);
-	
-	open_file = filesys_open(f->R.rdi);
-	if(open_file == NULL){
-		f->R.rax = -1;
-		return -1;
-	}
-	
-	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
-
-	fd->value = thread_current()->fd_count + 1;
-	fd->file = open_file;
-	list_push_back(fd_list,&fd->elem);
-	thread_current()->fd_count +=1;
-
-	// open 시 해더파일을 읽어서 excutable 한 파일인지 확인
-	if(!(file_read (fd->file, &ehdr, sizeof ehdr) != sizeof ehdr
-		|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
-		|| ehdr.e_type != 2
-		|| ehdr.e_machine != 0x3E // amd64
-		|| ehdr.e_version != 1
-		|| ehdr.e_phentsize != sizeof (struct ELF64_PHDR)
-		|| ehdr.e_phnum > 1024)){
-			file_deny_write(fd->file);
-		}
-	open_file->pos=0;
-	f->R.rax = fd->value;
-	return fd->value;
 }
 
 
 // filesize func parameter : int fd
 int syscall_filesize (struct intr_frame *f){
 
-	int fd_value = f->R.rdi;
-	struct list_elem * find_elem;
-	struct fd *find_fd;
-
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
-		f->R.rax = -1;
-		return -1;
-	}
-	find_fd = list_entry(find_elem, struct fd, elem);
-
-	struct inode * find_inode = file_get_inode(find_fd->file);
-	
-	int size = inode_length(find_inode);
-	f->R.rax = size;
-	return size;
 }
 
 
 // read func parameter : int fd, void *buffer, unsigned size
 int syscall_read (struct intr_frame *f){
 
-	check_addr(f->R.rsi);
-	int fd_value, size;
-	fd_value = f->R.rdi;
-	char* buf = f->R.rsi;
-	size = f->R.rdx;
-
-	int return_value;
-	struct list_elem * read_elem;
-	struct fd * read_fd;
-	struct ELF64_hdr ehdr;
-
-	read_elem = find_elem_match_fd_value(fd_value);
-
-	if(read_elem == NULL){
-		f->R.rax = -1;
-		return -1;
-	}
-
-	read_fd = list_entry(read_elem, struct fd, elem);
-	if(read_fd == NULL){
-		return;
-	}
-
-	struct inode * find_inode = file_get_inode(read_fd->file);
-	int filesize = inode_length(find_inode);
-
-	
-	return_value = file_read(read_fd->file,buf,size);
-
-	f->R.rax = return_value;
-	return return_value;
 }
 
 
@@ -342,105 +224,31 @@ void syscall_write(struct intr_frame *f){
 	int fd_value = f->R.rdi;
 	char *buf = f->R.rsi;
 	int size = f->R.rdx;
-	if(fd_value == 1){
-		putbuf(buf,size);
-		return;
+
+	if (fd_value == 1){ //fd는 0은 입력, 1은 출력으로 정해짐
+		putbuf(buf, size); //putbuf는 buf에 들어있는 값을 size만큼 출력
 	}
+	return size;
 
-	int return_value;
-	struct list_elem * write_elem;
-	struct fd * write_fd;
-	struct file *file;
-
-	write_elem = find_elem_match_fd_value(fd_value);
-
-	if(write_elem == NULL){
-		f->R.rax = -1;
-		return -1;
-	}
-
-	write_fd = list_entry(write_elem, struct fd, elem);
-	if(write_fd == NULL){
-		return;
-	}
-
-	if(write_fd->file->deny_write){
-		f->R.rax = 0;
-		return;
-	}
-	struct inode * find_inode = file_get_inode(write_fd->file);
-	int filesize = inode_length(find_inode);
-
-	return_value = file_write(write_fd->file,buf,size);
-
-	f->R.rax = return_value;
-	return return_value;
 }
 
 
 // seek func parameter : int fd, unsigned position
 void syscall_seek (struct intr_frame *f){
 
-	int fd_value = f->R.rdi;
-	unsigned int offset = f->R.rsi;
-	
-	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
-
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
-		syscall_abnormal_exit(-1);
-	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
-	file_seek(find_fd->file,offset);
 }
 
 
 // tell func parameter : int fd
 unsigned syscall_tell (struct intr_frame *f){
-	int fd_value = f->R.rdi;
-	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
 
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
-		syscall_abnormal_exit(-1);
-	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
-	unsigned int position = file_tell(find_fd->file);
-
-	f->R.rax = position;
-	return position;
 }
 
 
 // close func larameter : int fd
 void syscall_close (struct intr_frame *f){
 
-	int fd_value = f->R.rdi;
-	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
-
-
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
-		syscall_abnormal_exit(-1);
-	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
-	file_close(find_fd->file);
-	list_remove(find_elem);
-	free(find_fd);
 }
-
 
 // 공용 함수
 
@@ -484,6 +292,7 @@ bool check_ptr_address(struct intr_frame *f){
 	return success;
 }
 
+/*주소 값이 유저 영역에서 사용하는 주소 값인지 확인하는 함수. 유저영역이 아니면 -1 반환*/
 void check_addr(void * addr) {
 	struct thread *t = thread_current();
 	if(is_kernel_vaddr(addr) || pml4_get_page(t->pml4, addr)== NULL ){
