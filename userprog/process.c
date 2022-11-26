@@ -208,9 +208,8 @@ __do_fork (void *aux) {
 	struct argv *fork_argv =(struct argv*)aux;
 	struct thread *parent = fork_argv->fork_thread;
 
-
 	struct thread *current = thread_current ();
-	struct intr_frame if_;
+	// struct intr_frame if_;
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 
 	struct intr_frame *syscall_if;
@@ -218,8 +217,7 @@ __do_fork (void *aux) {
 	current->parent_tid = parent->tid;
 	parent->children = current->tid;
 
-
-	struct intr_frame *parent_if = &parent->tf;
+	// struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
@@ -258,7 +256,7 @@ __do_fork (void *aux) {
 	copy_fd_list(parent,current);
 
 
-	printf("do_fork6\n");
+	// printf("do_fork6\n");
 	if_.R.rax = 0;
 	process_init ();
 	/* Finally, switch to the newly created process. */
@@ -899,12 +897,10 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 	struct list *p_fd_list,*c_fd_list;
 	struct fd * find_fd;
 	struct file * copy_file;
-	// printf("============================copy_fd_list시작====================\n");
 	p_fd_list = &parent->fd_list;
 	c_fd_list = &child->fd_list;
 
 	if(list_empty(p_fd_list)){
-		printf("이게 찍히면 부모의 fd_list는 비어있는 상태라는 소리이다.\n");
 		return;
 	}
 
