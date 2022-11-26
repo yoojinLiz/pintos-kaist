@@ -43,6 +43,5 @@ off_t file_tell (struct file *);
 off_t file_length (struct file *);
 
 
-bool cmp_fd (struct list_elem *a, struct list_elem *b, void *aux);
 
 #endif /* filesys/file.h */

@@ -533,7 +533,7 @@ struct thread*
 find_children_list(struct list *find_list,int find_tid){
 	struct list_elem *curr;
 	struct thread * find_thread;
-
+	
 	if(list_empty(find_list)){
 		return NULL;
 	}

@@ -83,12 +83,75 @@ syscall_sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_front(&sema->waiters,&thread_current()->elem);
+		list_push_front(&sema->waiters,&thread_current()->sema_elem);
 		thread_block ();
 	}
 	sema->value--;
 	intr_set_level (old_level);
 }
+
+
+void
+syscall_sema_up (struct semaphore *sema) {
+	enum intr_level old_level;
+	ASSERT (sema != NULL);
+	struct list * waiter;
+	struct list_elem * find_elem;
+	struct thread* find_thread;
+
+	waiter = &sema->waiters;
+	old_level = intr_disable ();
+	if (!list_empty (&sema->waiters)) {
+			thread_unblock (list_entry (list_pop_front (&sema->waiters),
+					struct thread, sema_elem));
+		// find_elem = list_begin(waiter);
+		// while(find_elem != list_end(waiter)){
+		// 	find_thread = list_entry(find_elem,struct thread, wait_elem);
+
+		// 	if(find_thread->wait_number == thread_current()->tid){
+		// 		list_remove(find_elem);
+		// 		thread_unblock_custom(find_thread);
+		// 		break;
+		// 	}
+		// 	find_elem = list_next(find_elem);
+		// }
+	}
+	sema->value++;
+	intr_set_level (old_level);
+}
+
+// void
+// syscall_sema_up (struct semaphore *sema,int pid) {
+// 	enum intr_level old_level;
+// 	ASSERT (sema != NULL);
+// 	ASSERT (!intr_context ());
+
+// 	struct list *waiter = &sema->waiters;
+
+// 	struct list_elem *find_elem;
+// 	struct thread * find_thread;
+// 	old_level = intr_disable ();
+
+// 	while (sema->value == 0) {
+// 			// thread_unblock (list_entry (list_pop_front (&sema->waiters),
+// 			// 		struct thread, wait_elem));
+// 		if (!list_empty (waiter)) {
+// 			find_elem = list_begin(waiter);
+// 			while(find_elem != list_end(waiter)){
+// 				find_thread = list_entry(find_elem,struct thread, wait_elem);
+// 				if(find_thread->wait_number == pid){
+// 					list_remove(find_elem);
+// 					thread_unblock(find_thread);
+// 					break;
+// 					}
+// 				find_elem = list_next(find_elem);
+// 				// list_push_back(waiter,find_elem);
+// 			}
+// 		}
+// 	}
+// 	sema->value++;
+// 	intr_set_level (old_level);
+// }
 
 /* Down or "P" operation on a semaphore, but only if the
    semaphore is not already 0.  Returns true if the semaphore is
@@ -220,7 +283,6 @@ lock_acquire (struct lock *lock) {
 
 	//* 기다려서 lock을 획득했을 수도 있으므로 wait_on_lock을 초기화 
 	thread_current()-> wait_on_lock = NULL;
-
 	lock->holder = thread_current ();
 }
 
@@ -386,4 +448,52 @@ bool cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, v
 	// a의 우선순위가 높다면 1, b의 우선순위가 높다면 0 을 반환 
     return (priority_a > priority_b);
 
+}
+
+
+
+// * 2주차 추가 함수
+
+void
+fork_sema_up (struct semaphore *sema) {
+	enum intr_level old_level;
+	ASSERT (sema != NULL);
+	struct list * waiter;
+	struct list_elem * find_elem;
+	struct thread* find_thread;
+	struct thread* parent_thread;
+	parent_thread = thread_current()->parent_thread;
+	int parent_tid = parent_thread->tid;
+
+	waiter = &sema->waiters;
+	old_level = intr_disable ();
+	if (!list_empty (&sema->waiters)) {
+			find_thread = list_entry (list_pop_back (&sema->waiters),struct thread, fork_elem);
+		// find_elem = list_begin(waiter);
+		// while(find_elem != list_end(waiter)){
+		// 	find_thread = list_entry(find_elem,struct thread, fork_elem);
+		// 	if(find_thread->tid == parent_tid){
+		// 		list_remove(find_elem);
+				thread_unblock_custom(find_thread);
+		// 		break;
+		// 	}
+		// 	find_elem = list_next(find_elem);
+		// }
+	}
+	sema->value++;
+	intr_set_level (old_level);
+}
+void
+fork_sema_down (struct semaphore *sema) {
+	enum intr_level old_level;
+
+	ASSERT (sema != NULL);
+	ASSERT (!intr_context ());
+	old_level = intr_disable ();
+	while (sema->value == 0) {
+		list_push_back (&sema->waiters, &thread_current ()->fork_elem);
+		thread_block ();
+	} 
+	sema->value--;
+	intr_set_level (old_level);
 }

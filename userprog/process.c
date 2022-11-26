@@ -30,8 +30,14 @@ struct argv
 	struct thread * fork_thread;
 	struct intr_fram * if_;
 };
-struct semaphore fork_sema;
 
+struct sema_tid
+{
+	struct semaphore child_sema;
+	struct list_elem sema_list_elem;
+	int child_tid;
+};
+static struct semaphore wait_sema;
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -106,9 +112,6 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 
-
-	sema_init(&fork_sema,0);
-
 // 	/* Clone current thread to new thread.*/
 	// struct thread *parent = thread_current();
 
@@ -121,13 +124,8 @@ process_fork (const char *name, struct intr_frame *if_) {
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
-	
-	
-
-	sema_down(&fork_sema);
-
+	process_fork_sema_down();
 	return pid;
-	
 }
 
 #ifndef VM
@@ -200,9 +198,9 @@ __do_fork (void *aux) {
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *syscall_if;
 	syscall_if = fork_argv->if_;
-	current->parent_tid = parent->tid;
-	struct list * children_list = &parent->children_list;
-	list_push_front(children_list,&current->children_elem);
+	// current->parent_tid = parent->tid;
+	// struct list * children_list = &parent->children_list;
+	// list_push_front(children_list,&current->children_elem);
 
 	bool succ = true;
 	/* 1. Read the cpu context to local stack. */
@@ -232,18 +230,18 @@ __do_fork (void *aux) {
 
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
-
-
 	process_init ();
 	/* Finally, switch to the newly created process. */
+
+
 	if (succ){
-		sema_up(&fork_sema);
+		process_fork_sema_up();
 		free(fork_argv);
 		thread_yield();
 		do_iret (&if_);
 	}
 error:
-	sema_up(&fork_sema);
+	// process_fork_sema_up();
 	free(fork_argv);
 	thread_exit ();
 }
@@ -372,33 +370,36 @@ process_wait (tid_t child_tid) {
 	// 따라서 이 함수가 child_tid가 종료되기를 기다리는 동안 무한루프를 써서 기다리게 한다. 
 	/* The pintos exit if process_wait (initd), 
 	  we recommend you to add infinite loop here before implementing the process_wait. */
-	if(exit_code_dead_child(child_tid) == -2){
-		syscall_wait_sema_down();
+	
+	struct list* child_list = &thread_current()->children_list;
+	struct list_elem * child_elem;
+	struct thread * child_thread;
+	struct semaphore * sema;
+
+	child_thread = check_exist(child_tid);
+
+	if(child_thread->wait_check){
+		return -1;
 	}
-	// bool check = false;
-	// while (!check)
-	// {	
-	// 	enum intr_level old_level;
-	// 	old_level = intr_disable();
-	// 	check = check_destory_thread(child_tid);
-	// 	intr_set_level(old_level);
-	// }
+
+	sema = &thread_current()->wait_sema;
+	syscall_sema_down(sema);
 
 
-	int exit_code = exit_code_dead_child(child_tid);
-	// printf("exit code = %d\n",exit_code);
-	// if(exit_code == -2){
-	// 	syscall_wait_sema_down();
-	// }
 
-	return exit_code;
+	if(child_thread != NULL){
+		int first_exit_code = child_thread->exit_code;
+		return first_exit_code;
+	}
+	return -1;
+
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-
+	struct thread *parent = thread_current()->parent_thread;
 
 	// /* TODO: Your code goes here.
 	//  * TODO: Implement process termination message (see
@@ -406,7 +407,10 @@ process_exit (void) {
 	//  * TODO: We recommend you to implement process resource cleanup here. */
 	if(curr->pml4 > KERN_BASE)
 		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
-	syscall_wait_sema_up();
+
+	close_all_file();
+	curr->dead = true;
+	syscall_sema_up(&parent->wait_sema);
 	process_cleanup ();
 }
 
@@ -489,7 +493,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
 			|| ehdr.e_type != 2
-			|| ehdr.e_machine != 0x3E // amd64
+			|| ehdr.e_machine != 0x3E
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
@@ -558,10 +562,16 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->rip = ehdr.e_entry; //rip = 프로그램카운터  rbp = 스택 bp, rsp = 스택포인터 
 
 	success = true;
+	file_deny_write(file);
+
+	struct exec_file * e_file = (struct exec_file*)malloc(sizeof(struct exec_file));
+	e_file->file = file;
+	struct list* exec_list = &thread_current()->exec_files_list;
+	list_push_front(exec_list,&e_file->elem);
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	// file_close (file);
 	return success;
 }
 

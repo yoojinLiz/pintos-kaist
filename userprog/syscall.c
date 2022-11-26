@@ -153,20 +153,10 @@ void syscall_exit(struct intr_frame *f){
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
 
-
 	char * thread_name = f->R.rdi;
-	// struct intr_frame * parent_tf = (struct intr_frame*)malloc(sizeof(struct intr_frame));
-	// parent_tf = &thread_current()
 	int return_value;
 	return_value = process_fork(thread_name, f);
-	// if(thread_current()->parent_tid != NULL){
 	f->R.rax = return_value;
-
-		// return 0;
-	// }
-	// f->R.rax = return_value;
-	// return f->R.rax;
-
 }
 
 
@@ -178,6 +168,8 @@ int syscall_exec (struct intr_frame *f){
 	char *file_name = f->R.rdi;
 	char *fn_copy ;
 
+	// printf("hi!!!! i am %d\n",thread_current()->tid);
+
 	check_addr(file_name);
 	fn_copy = palloc_get_page (0); 
 
@@ -185,33 +177,49 @@ int syscall_exec (struct intr_frame *f){
 	{
 		syscall_abnormal_exit(-1);
 		palloc_free_page(fn_copy);
+		f->R.rax = -1;
 		return -1;
 	}
 	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
 	if (process_exec (fn_copy) < 0) {
 		palloc_free_page(fn_copy);
+		f->R.rax = -1;
 		syscall_abnormal_exit(-1);
 	}
     return 0;
-
 }
 
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
+
 	struct thread * check_thread = check_exist(pid);
 
 	if(check_thread == NULL){
+		// printf("none\n");
 		f->R.rax = -1;
 		return -1;
 	}
+
+	// if(check_thread->dead){
+	// 	// printf("done-job\n");
+	// 	f->R.rax = -1;
+	// 	return -1;
+	// }
+	// printf("done-job\n");
+	// printf("first pass\n");
 	// check_addr(f->R.rdi);
 	int return_value = 0;
-	if(check_thread->exit_code != -2){
-		f->R.rax = -1;
-		return -1;
-	}
+
+	// if(check_thread->exit_code != -2){
+	// 	// f->R.rax = check_thread->exit_code;
+	// 	f->R.rax = -1;
+	// 	// return check_thread->exit_code;
+	// 	return -1;
+	// }
+	// printf("second pass\n");
 	return_value = process_wait(pid);
+	check_thread->wait_check = true;
 	f->R.rax = return_value;
 	return return_value;
 }
@@ -225,6 +233,7 @@ bool syscall_create (struct intr_frame *f){
 	if(f->R.rdi == NULL){
 		syscall_abnormal_exit(-1);
 	}
+
 	success = filesys_create(f->R.rdi,f->R.rsi);
 	f->R.rax = success;
 	return success;
@@ -247,7 +256,7 @@ int syscall_open (struct intr_frame *f){
 
 	struct file *open_file;
 	struct list * fd_list;
-	struct ELF64_hdr ehdr;
+
 
 	fd_list = &thread_current()->fd_list;
 	check_addr(f->R.rdi);
@@ -265,16 +274,6 @@ int syscall_open (struct intr_frame *f){
 	list_push_back(fd_list,&fd->elem);
 	thread_current()->fd_count +=1;
 
-	// open 시 해더파일을 읽어서 excutable 한 파일인지 확인
-	if(!(file_read (fd->file, &ehdr, sizeof ehdr) != sizeof ehdr
-		|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
-		|| ehdr.e_type != 2
-		|| ehdr.e_machine != 0x3E // amd64
-		|| ehdr.e_version != 1
-		|| ehdr.e_phentsize != sizeof (struct ELF64_PHDR)
-		|| ehdr.e_phnum > 1024)){
-			file_deny_write(fd->file);
-		}
 	open_file->pos=0;
 	f->R.rax = fd->value;
 	return fd->value;
@@ -331,10 +330,8 @@ int syscall_read (struct intr_frame *f){
 
 	struct inode * find_inode = file_get_inode(read_fd->file);
 	int filesize = inode_length(find_inode);
-
 	
 	return_value = file_read(read_fd->file,buf,size);
-
 	f->R.rax = return_value;
 	return return_value;
 }
@@ -370,9 +367,10 @@ void syscall_write(struct intr_frame *f){
 	}
 
 	if(write_fd->file->deny_write){
-		f->R.rax = 0;
+		f->R.rax = -1;
 		return;
 	}
+
 	struct inode * find_inode = file_get_inode(write_fd->file);
 	int filesize = inode_length(find_inode);
 
@@ -440,8 +438,7 @@ void syscall_close (struct intr_frame *f){
 
 	fd_list = list_entry(find_elem, struct fd, elem);
 	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
-	file_close(find_fd->file);
+	close_one_file(find_fd->file);
 	list_remove(find_elem);
 	free(find_fd);
 }
@@ -521,5 +518,72 @@ find_elem_match_fd_value(int fd_value){
 	return NULL;
 }
 
+
+void close_all_file(){
+
+	struct list *exec_list;
+	struct exec_file * e_file;
+	struct file * copy_file;
+
+	exec_list = &thread_current()->exec_files_list;
+
+	if(list_empty(exec_list)){
+		// printf("current thread tid = %d\n",thread_current()->tid);
+		// printf("none\n");
+		return;
+	}
+
+	struct list_elem * cur;
+	
+	// cur = list_begin(exec_list);
+
+	while (!list_empty(exec_list))
+	{	
+		cur = list_pop_front(exec_list);
+		e_file = list_entry(cur,struct exec_file,elem);
+		// printf("delete\n");
+		file_close(e_file->file);
+		free(e_file);
+		cur = list_next(cur);
+	}
+
+
+	// while (cur != list_end(exec_list))
+	// {	
+	// 	e_file = list_entry(cur,struct exec_file,elem);
+	// 	// printf("delete\n");
+	// 	file_close(e_file->file);
+	// 	free(e_file);
+	// 	cur = list_next(cur);
+	// }
+
+}
+
+void close_one_file(struct file* file){
+
+	struct list *exec_list;
+	struct exec_file * e_file;
+	struct file * copy_file;
+
+	exec_list = &thread_current()->exec_files_list;
+
+	if(list_empty(exec_list)){
+		return;
+	}
+
+	struct list_elem * cur;
+	cur = list_begin(exec_list);
+	while (cur != list_end(exec_list))
+	{	
+		e_file = list_entry(cur,struct exec_file,elem);
+		if(file == e_file->file){
+			printf("hd\n");
+			file_close(e_file->file);
+			free(e_file);
+			break;
+		}
+		cur = list_next(cur);
+	}
+}
 
 
