@@ -285,17 +285,15 @@ int syscall_open (struct intr_frame *f){
 // filesize func parameter : int fd
 int syscall_filesize (struct intr_frame *f){
 	int fd_value = f->R.rdi;
-	struct fd *find_fd;
-	find_fd= find_matched_fd(fd_value);
+	struct fd *	find_fd= find_matched_fd(fd_value);
 	
 	if(find_fd == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
-
-	struct inode * find_inode = file_get_inode(find_fd->file);
-	
-	int size = inode_length(find_inode);
+	int size = file_length (find_fd->file); //* file_length 함수에서 아래의 두 작업을 진행합니다!
+	// struct inode * find_inode = file_get_inode(find_fd->file);
+	// int size = inode_length(find_inode);
 	f->R.rax = size;
 	return size;
 }
@@ -488,7 +486,7 @@ find_matched_fd(int fd_value){
 	{
 		struct fd *find_fd = list_entry(cur, struct fd, elem);
 		if(find_fd->value == fd_value){
-			return list_entry(cur, struct fd, elem);
+			return find_fd;
 ;
 		}
 		cur = list_next(cur);
