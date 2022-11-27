@@ -183,37 +183,121 @@ bool syscall_create (struct intr_frame *f){
 	char * file = f->R.rdi;
 	int size = f->R.rsi;
 	// printf("rax %d!!!, rdi %s!!!, rsi %d!!!\n",f->R.rax, f->R.rdi, f->R.rsi);
+	check_addr(f->R.rdi);
 	if (filesys_create(file, size)){
 		return true;
 	}else{
 		return false;
 	}
-	
 }
 
 
-// remove func parameter : chonst char *file
+// remove func parameter : const char *file
 bool syscall_remove (struct intr_frame *f){
-	print_values(f,2);
-	
+	char* file = f->R.rdi;
+	if (filesys_remove(file)){
+		return true;
+	}else{
+		return false;
+	}
 }
 
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
 
+	struct file *open_file;
+	struct list * fd_list;
+	struct ELF64_hdr ehdr;
+
+	fd_list = &thread_current()->fd_list;
+	check_addr(f->R.rdi);
+	
+	open_file = filesys_open(f->R.rdi);
+	if(open_file == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+	
+	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
+
+	fd->value = thread_current()->fd_count + 1;
+	fd->file = open_file;
+	list_push_back(fd_list,&fd->elem);
+	thread_current()->fd_count +=1;
+
+	// open 시 해더파일을 읽어서 excutable 한 파일인지 확인
+	if(!(file_read (fd->file, &ehdr, sizeof ehdr) != sizeof ehdr
+		|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
+		|| ehdr.e_type != 2
+		|| ehdr.e_machine != 0x3E // amd64
+		|| ehdr.e_version != 1
+		|| ehdr.e_phentsize != sizeof (struct ELF64_PHDR)
+		|| ehdr.e_phnum > 1024)){
+			file_deny_write(fd->file);
+		}
+	open_file->pos=0;
+	f->R.rax = fd->value;
+	return fd->value;
 }
 
 
 // filesize func parameter : int fd
 int syscall_filesize (struct intr_frame *f){
 
+	int fd_value = f->R.rdi;
+	struct list_elem * find_elem;
+	struct fd *find_fd;
+
+	find_elem = find_elem_match_fd_value(fd_value);
+	if(find_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+	find_fd = list_entry(find_elem, struct fd, elem);
+
+	struct inode * find_inode = file_get_inode(find_fd->file);
+	
+	int size = inode_length(find_inode);
+	f->R.rax = size;
+	return size;
 }
 
 
 // read func parameter : int fd, void *buffer, unsigned size
 int syscall_read (struct intr_frame *f){
+	// print_values(&f,2);
+	check_addr(f->R.rsi);
+	int fd_value, size;
+	fd_value = f->R.rdi;
+	char* buf = f->R.rsi;
+	size = f->R.rdx;
 
+	int return_value;
+	struct list_elem * read_elem;
+	struct fd * read_fd;
+	struct ELF64_hdr ehdr;
+
+	read_elem = find_elem_match_fd_value(fd_value);
+
+	if(read_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+
+	read_fd = list_entry(read_elem, struct fd, elem);
+	if(read_fd == NULL){
+		return;
+	}
+
+	struct inode * find_inode = file_get_inode(read_fd->file);
+	int filesize = inode_length(find_inode);
+
+	
+	return_value = file_read(read_fd->file,buf,size);
+
+	f->R.rax = return_value;
+	return return_value;
 }
 
 
@@ -227,15 +311,63 @@ void syscall_write(struct intr_frame *f){
 
 	if (fd_value == 1){ //fd는 0은 입력, 1은 출력으로 정해짐
 		putbuf(buf, size); //putbuf는 buf에 들어있는 값을 size만큼 출력
+		return;
 	}
-	return size;
+	int return_value;
+	struct list_elem *write_elem;
+	struct fd * write_fd;
+	struct file *file;
+
+	write_elem = find_elem_match_fd_value(fd_value);
+
+	if(write_elem == NULL){
+		f->R.rax = -1;
+		return -1;
+	}
+
+	write_fd = list_entry(write_elem, struct fd, elem);
+	if(write_fd == NULL){
+		return;
+	}
+
+	if(write_fd->file->deny_write){
+		f->R.rax = 0;
+		return;
+	}
+	struct inode * find_inode = file_get_inode(write_fd->file);
+	int filesize = inode_length(find_inode);
+
+	return_value = file_write(write_fd->file,buf,size);
+
+	f->R.rax = return_value;
+	return return_value;
+
+
+
+	// return size;
 
 }
 
 
 // seek func parameter : int fd, unsigned position
 void syscall_seek (struct intr_frame *f){
+	int fd_value = f->R.rdi;
+	unsigned int offset = f->R.rsi;
+	
+	struct list *fd_list = &thread_current()->fd_list;
+	struct list_elem * find_elem;
 
+	find_elem = find_elem_match_fd_value(fd_value);
+	if(find_elem == NULL){
+		syscall_abnormal_exit(-1);
+	}
+
+	fd_list = list_entry(find_elem, struct fd, elem);
+	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+
+
+
+	file_seek(find_fd->file, offset);
 }
 
 
@@ -251,7 +383,6 @@ void syscall_close (struct intr_frame *f){
 }
 
 // 공용 함수
-
 void syscall_abnormal_exit(short exit_code){
 	thread_current()->exit_code = exit_code;
 	thread_exit();
