@@ -274,118 +274,93 @@ error:
 }
 
 
-
-
-// //Switch the current execution context to the f_name. Returns -1 on fail. (현재 프로세스 -> 새 파일로 문맥교환을 시도하고, 실패할 경우 -1 반환 )
-// // * 2주차 수정 : argument parsing and passing  */
-// int
-// process_exec (void *f_name) { // 
-// 	char *file_name;	
-// 	bool success;
-
-// 	/* We cannot use the intr_frame in the thread structure.
-// 	 * This is because when current thread rescheduled,
-// 	 * it stores the execution information to the member. */
-// 	struct intr_frame _if;
-// 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
-// 	_if.cs = SEL_UCSEG;
-// 	_if.eflags = FLAG_IF | FLAG_MBS;
-
-// 	/* We first kill the current context */
-// 	process_cleanup ();
-
-// 	file_name = argument_parsing(f_name, &_if); 
-
-// 	/* And then load the binary */
-// 	success = load (file_name, &_if);
-
-// 	if (!success)
-// 		return -1;
+void passing_argument(char *f_name, struct intr_frame *_if) {
+	char *token , *save_ptr;
+	int *argv[LOADER_ARGS_LEN / 2 + 1]; 
+	int argc , i;
+	int k ; 
+	bool success;
 	
-// 	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
+	// 인자 parsing 해서 스택에 push 
+	char * file_name = strtok_r (f_name, " ", &save_ptr);
+	argv[0] = file_name;
 
-// 	/* Start switched process. */
-// 	/* If load failed, quit. */
-// 	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
-// 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
-// }
+	// 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+	argc = 1 ;
+	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[argc] = token; // token 문자열의 시작지점 
+		argc ++;
+	}
+
+	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열 
+	for (i = argc-1; i>-1; i--) {
+		k = strlen(argv[i]);
+		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+		memset(_if->rsp, '\0', k+1);
+		memcpy(_if->rsp, argv[i], k);
+		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+	}
+
+	// word-aligned 
+	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+		_if->rsp -= pad ; // 포인터를 내리고
+		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
+	}
+
+	// 스택에 널포인터 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
+
+	// 스택에 역순으로 push 
+	for (i = argc -1; i>-1; i--) {
+		_if->rsp -=8 ; 
+		memcpy(_if->rsp, &argv[i], 8) ; 
+	}
+
+	_if->R.rdi = argc ; 
+	_if->R.rsi = _if->rsp ; 
+
+	// 스택에 fake return address 인 0 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
+}
 
 
 int
 process_exec (void *f_name) { 
 	bool success;
+	char *not_used; 
 	/* We cannot use the intr_frame in the thread structure. This is because when current thread rescheduled,
 	   it stores the execution information to the member. */
+	
+	/* We first kill the current context */
+	process_cleanup ();
+
 	struct intr_frame _if;
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 
-	/* We first kill the current context */
-	process_cleanup ();
-	char *token , *save_ptr;
-	int argc , i;
-	int *argv[LOADER_ARGS_LEN / 2 + 1]; 
-	int k ; 
-	
-	//* 인자 parsing 해서 스택에 push 
-	char * file_name = strtok_r (f_name, " ", &save_ptr);
-	argv[0] = file_name;
-	/* And then load the binary */
-	success = load (file_name, &_if);
+	char * fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL)
+		return TID_ERROR;
+	strlcpy (fn_copy, f_name, PGSIZE); // filename을 fn_copy로 복사 
+	char *file_name = strtok_r(fn_copy," ",&not_used);
 
+	/* 실행 파일 로드 */
+	success = load (file_name, &_if);
 	if (!success)
 		return -1;
-
-	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
-	argc = 1 ;
-	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-		argv[argc] = token; // token 문자열의 시작지점 
-		argc ++;
-	}
 	
-	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
-	for (i = argc-1; i>-1; i--) {
-		k = strlen(argv[i]);
-		_if.rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
-		memset(_if.rsp, '\0', k+1);
-		memcpy(_if.rsp, argv[i], k);
-		argv[i]= (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
-	}
-
-	//* word-aligned 해야 함 
-	if (_if.rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-		int pad = _if.rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-		_if.rsp -= pad ; // 포인터를 내리고
-		memset(_if.rsp, 0, pad); // 7만큼 0으로 채운다 
-	}
-
-	//* 스택에 널포인터 push 
-	_if.rsp -= 8;
-	memset(_if.rsp, 0,8);
-
-
-	//* 스택에 역순으로 push 
-	for (i = argc -1; i>-1; i--) {
-		_if.rsp -=8 ; 
-		memcpy(_if.rsp, &argv[i], 8) ; 
-	}
-
-	_if.R.rdi = argc ; 
-	_if.R.rsi = _if.rsp ; 
-
-	//* 스택에 fake return address 인 0 push 
-	_if.rsp -= 8;
-	memset(_if.rsp, 0,8);
-	// hex_dump(_if.rsp, _if.rsp, 100, true);
+	passing_argument(f_name, &_if);
+	
+	palloc_free_page(file_name); // load 에서 할당된 페이지 해제 
+	// palloc_free_page(fn_copy); // 이걸 해주는 게 맞다고는 생각되는데 얘를 포함하면 전체 커널 패닉이 발생해서 우선 주석처리
 
 	/* Start switched process. */
-	/* If load failed, quit. */
-	palloc_free_page (file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-
-
-	do_iret (&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수 
+	do_iret (&_if); 
 	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
 }
 
@@ -512,6 +487,7 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	file_deny_write(file);
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -809,60 +785,60 @@ setup_stack (struct intr_frame *if_) {
 
 
 // * 수정 나중에 yj가 수정하기로함 ^^
-// char * argument_parsing (char *f_name, struct intr_frame *_if) {
-// 	int *argv[LOADER_ARGS_LEN / 2 + 1];
-// 	char *token , *save_ptr, *file_name;	
-// 	int argc , i, k;
-// 	file_name = strtok_r (f_name, " ", &save_ptr);
-// 	argv[0] = file_name; 
-// 	// printf("argv[0]는 %s\n\n", argv[0]);
+char * argument_parsing (char *f_name, struct intr_frame *_if) {
+	int *argv[LOADER_ARGS_LEN / 2 + 1];
+	char *token , *save_ptr, *file_name;	
+	int argc , i, k;
+	file_name = strtok_r (f_name, " ", &save_ptr);
+	argv[0] = file_name; 
+	// printf("argv[0]는 %s\n\n", argv[0]);
 
-// 	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
-// 	argc = 1 ;
-// 	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-// 		argv[argc] = token; // token 문자열의 시작지점 
-// 		argc ++;
-// 		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
-// 	}
+	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+	argc = 1 ;
+	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[argc] = token; // token 문자열의 시작지점 
+		argc ++;
+		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
+	}
 	
-// 	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
-// 	for (i = argc-1; i>-1; i--) {
-// 		k = strlen(argv[i]);
-// 		printf("rsp 주소는 %p \n", _if->rsp);
-// 		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
+	for (i = argc-1; i>-1; i--) {
+		k = strlen(argv[i]);
+		printf("rsp 주소는 %p \n", _if->rsp);
+		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
 
-// 		memset(_if->rsp, '\0', k+1); // 
-// 		memcpy(_if->rsp, argv[i], k);
-// 		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
-// 	}
+		memset(_if->rsp, '\0', k+1); // 
+		memcpy(_if->rsp, argv[i], k);
+		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+	}
 
-// 	//* word-aligned 해야 함 
-// 	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-// 		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-// 		_if->rsp -= pad ; // 포인터를 내리고
-// 		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
-// 	}
+	//* word-aligned 해야 함 
+	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+		_if->rsp -= pad ; // 포인터를 내리고
+		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
+	}
 
-// 	//* 스택에 널포인터 push 
-// 	_if->rsp -= 8;
-// 	memset(_if->rsp, 0,8);
+	//* 스택에 널포인터 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
 
 
-// 	//* 스택에 역순으로 push 
-// 	for (i = argc -1; i>-1; i--) {
-// 		_if->rsp -=8 ; 
-// 		memcpy(_if->rsp, &argv[i], 8) ; 
-// 	}
-// 	_if->R.rdi = argc ; 
-// 	_if->R.rsi = _if->rsp ; 
+	//* 스택에 역순으로 push 
+	for (i = argc -1; i>-1; i--) {
+		_if->rsp -=8 ; 
+		memcpy(_if->rsp, &argv[i], 8) ; 
+	}
+	_if->R.rdi = argc ; 
+	_if->R.rsi = _if->rsp ; 
 
-// 	// //* 스택에 fake return address 인 0 push 
-// 	_if->rsp -= 8;
-// 	memset(_if->rsp, 0,8);
-// 	hex_dump(_if->rsp, _if->rsp, 100, true);
+	// //* 스택에 fake return address 인 0 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
+	hex_dump(_if->rsp, _if->rsp, 100, true);
 
-// 	return file_name; 
-// }  
+	return file_name; 
+}  
 
 // 자식 스레드 tid를 가지고 현재 스레드의 children 리스트 검색 - 찾으면 해당 스레드 반환 
 // struct thread *get_child_process (tid_t child_tid) {
