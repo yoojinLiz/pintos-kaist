@@ -473,29 +473,6 @@ void check_addr(void * addr) {
 	}
 }
 
-struct list_elem*
-find_elem_match_fd_value(int fd_value){ //! 이 함수를 수정해서 아래 find_matched_fd 를 만들었는데  추후 문제없으면 이로 대체할게요! 
-
-	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * cur;
-
-	if(list_empty(fd_list)){
-		return NULL;
-	}
-
-	cur = list_begin(fd_list);
-	while (cur != list_end(fd_list))
-	{
-		struct fd *find_fd = list_entry(cur, struct fd, elem);
-		if(find_fd->value == fd_value){
-			return cur;
-		}
-		cur = list_next(cur);
-	}
-	return NULL;
-}
-
-
 struct fd *
 find_matched_fd(int fd_value){
 
