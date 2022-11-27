@@ -31,12 +31,6 @@ struct argv
 	struct intr_fram * if_;
 };
 
-struct sema_tid
-{
-	struct semaphore child_sema;
-	struct list_elem sema_list_elem;
-	int child_tid;
-};
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -122,12 +116,21 @@ process_fork (const char *name, struct intr_frame *if_) {
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
 
-	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
-	enum intr_level old_level;
+	// printf("i(%d) forked %d  ",thread_current()->tid,pid);
+	// printf("tid_error = %d\n",TID_ERROR);
 
+	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
+
+
+
+	enum intr_level old_level;
 	old_level = intr_disable ();
 	process_fork_sema_down();
 	intr_set_level (old_level);
+
+	if(!thread_current()->make_child_success){
+		return -1;
+	}
 
 	return pid;
 }
@@ -163,6 +166,12 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to NEWPAGE.*/
 	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+	if(newpage == NULL){
+		palloc_free_page(newpage);
+		return false;
+	}
+
+
 	/*페이지를 할당 받을 건데 PAL_USER플레그를 줌으로써 유저가 쓸 수 있는 메모리 pool에서 페이지를 가져올거고
 	PAL_ZERO를 씀으로써 할당받은 페이지 메모리를 0으로 초기화 할 거임.
 	https://casys-kaist.github.io/pintos-kaist/appendix/memory_allocation.html 참고*/
@@ -179,8 +188,9 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
-		thread_current()->exit_code = -1;
-		thread_exit();
+		palloc_free_page(newpage);
+
+		return false;
 	}
 
 	return true;
@@ -220,8 +230,9 @@ __do_fork (void *aux) {
 #else
 
 	if (!pml4_for_each (parent->pml4, duplicate_pte, fork_argv)){
-		thread_current()->exit_code = -1;
-		thread_exit();
+		
+		// thread_current()->exit_code = -1;
+		// thread_exit();
 		goto error;
 	} 
 #endif
@@ -233,17 +244,44 @@ __do_fork (void *aux) {
 
 	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent,current);
-
 	process_init ();
 	/* Finally, switch to the newly created process. */
 
 	if (succ){
+		parent->make_child_success = true;
 		free(fork_argv);
+		// process_fork_sema_up();
 		// thread_yield();
 		do_iret (&if_);
 	}
 error:
+	parent->make_child_success = false;
 	free(fork_argv);
+	thread_current()->exit_code = -1;
+
+	struct thread_exit_pack * tep;
+	struct list * children_list = &parent->children_list;
+	struct list_elem * elem_cur;
+	struct thread* curr = thread_current();
+
+	if(!list_empty(children_list)){
+		elem_cur = list_begin(children_list);
+		int curr_tid = curr->tid;
+
+		while (elem_cur != list_end(children_list))
+		{
+			tep = list_entry(elem_cur,struct thread_exit_pack,elem);
+			if(tep->tid == curr->tid){
+				elem_cur = list_remove(&tep->elem);
+				tep->exit_code = curr->exit_code;
+				free(tep);
+				break;
+			}
+			elem_cur = list_next(elem_cur);
+		}
+
+	}
+
 	thread_exit ();
 }
 
@@ -351,7 +389,6 @@ process_wait (tid_t child_tid) {
 
 	int first_exit_code = child_tep->exit_code;
 	child_tep->exit_code = -1;
-
 	return first_exit_code;
 
 }
@@ -362,31 +399,29 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	struct thread *parent = thread_current()->parent_thread;
 
-		if(curr->pml4 > KERN_BASE)
-			printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
+	// printf("i %d dying ",curr->tid);
 
-	enum intr_level old_level;
-	old_level = intr_disable ();
-	close_all_file();
-	syscall_sema_up(&parent->wait_sema);
-	process_fork_sema_up();
-	intr_set_level (old_level);
 
 	// free(fork_argv);
-
+	// 자신 tep wjscp tkrwp
 	struct thread_exit_pack * tep2;
 	struct list * children_list2 = &curr->children_list;
 	struct list_elem * elem_cur2;
 
-	elem_cur2 = list_begin(children_list2);
+	if(!list_empty(children_list2)){
+		elem_cur2 = list_begin(children_list2);
 
-	while (elem_cur2 != list_end(children_list2))
-	{
-		tep2 = list_entry(elem_cur2,struct thread_exit_pack,elem);
-		list_remove(&tep2->elem);
-		free(tep2);
-		elem_cur2 = list_next(elem_cur2);
+		while (!list_empty(children_list2))
+		{	
+			tep2 = list_entry(elem_cur2,struct thread_exit_pack,elem);
+			elem_cur2 = list_remove(elem_cur2);
+			free(tep2);
+		}
 	}
+
+	close_all_file();
+	delete_all_fd();
+	
 
 
 	/* TODO: Your code goes here.
@@ -399,19 +434,33 @@ process_exit (void) {
 	struct list * children_list = &parent->children_list;
 	struct list_elem * elem_cur;
 
-	elem_cur = list_begin(children_list);
-	int curr_tid = curr->tid;
+	// 부모쪽에 값 수정
+	if(!list_empty(children_list)){
+		elem_cur = list_begin(children_list);
+		int curr_tid = curr->tid;
 
-	while (elem_cur != list_end(children_list))
-	{
-		tep = list_entry(elem_cur,struct thread_exit_pack,elem);
-		if(tep->tid == curr->tid){
-			// remove(&tep->elem);
-			tep->exit_code = curr->exit_code;
+		while (elem_cur != list_end(children_list))
+		{
+			tep = list_entry(elem_cur,struct thread_exit_pack,elem);
+			if(tep->tid == curr->tid){
+				tep->exit_code = curr->exit_code;
+			}
+			elem_cur = list_next(elem_cur);
 		}
-		elem_cur = list_next(elem_cur);
+
 	}
+
+
+	if(curr->pml4 > KERN_BASE)
+		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
+
 	process_cleanup ();
+
+	process_fork_sema_up();
+	syscall_sema_up(&parent->wait_sema);
+
+
+	// thread_yield();
 }
 
 /* Free the current process's resources. */
@@ -806,7 +855,6 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 	cur = list_begin(p_fd_list);
 	while (cur != list_end(p_fd_list))
 	{	
-
 		find_fd = list_entry(cur, struct fd, elem);
 		copy_file = file_duplicate(find_fd->file);
 		if(copy_file != NULL){
@@ -817,12 +865,33 @@ void copy_fd_list(struct thread* parent,struct thread* child){
 			// child->fd_count = parent->fd_count;
 			child->fd_count +=1;
 			list_push_front(c_fd_list,&new_fd->elem);
-
 		}
 		cur = list_next(cur);
+	}
+}
 
-		if(cur == list_end(p_fd_list)){
+void delete_all_fd(){
+
+	struct list *fd_list;
+	struct fd * delete_fd;
+
+	fd_list = &thread_current()->fd_list;
+
+	if(list_empty(fd_list)){
+		return;
+	}
+
+	struct list_elem * cur;
+	cur = list_begin(fd_list);
+	while (true)
+	{	
+		delete_fd = list_entry(cur,struct fd,elem);
+		file_close(delete_fd->file);
+		cur = list_remove(&delete_fd->elem);
+		free(delete_fd);
+		if(list_empty(fd_list)){
 			return;
 		}
+
 	}
 }

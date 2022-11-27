@@ -228,7 +228,6 @@ tid_t thread_create(const char *name, int priority,
 	struct list * children_list = &thread_current()->children_list;
 	// list_push_back(children_list,&t->children_elem);
 	struct thread_exit_pack * tep = (struct thread_exit_pack*)malloc(sizeof(struct thread_exit_pack));
-	tep->exit_code = -1;
 	tep->tid = t->tid;
 	list_push_back(children_list,&tep->elem);
 
@@ -336,10 +335,11 @@ void thread_exit(void)
 {
 	ASSERT(!intr_context());
 
+
+	// printf("now tid = %d\n",thread_current()->tid);
 #ifdef USERPROG
 	process_exit();
 #endif
-	// printf("now tid = %d\n",thread_current()->tid);
 	// printf("now sema value = %d\n",thread_current()->parent_sema.value);
 	// struct list_elem * redy =list_begin(&ready_list);
 	// struct thread* th = list_entry(redy,struct thread,elem);
@@ -497,7 +497,7 @@ init_thread(struct thread *t, const char *name, int priority)
 	list_init(&t->exec_files_list);
 
 	sema_init(&t->wait_sema,0);
-
+	t->make_child_success = true;
 	t->exit_code = -1;
 	
 

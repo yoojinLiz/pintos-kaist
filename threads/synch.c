@@ -468,7 +468,7 @@ fork_sema_up (struct semaphore *sema) {
 	waiter = &sema->waiters;
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters)) {
-			find_thread = list_entry (list_pop_front (&sema->waiters),struct thread, fork_elem);
+			find_thread = list_entry (list_pop_back (&sema->waiters),struct thread, fork_elem);
 		// find_elem = list_begin(waiter);
 		// while(find_elem != list_end(waiter)){
 		// 	find_thread = list_entry(find_elem,struct thread, fork_elem);
@@ -491,7 +491,7 @@ fork_sema_down (struct semaphore *sema) {
 	ASSERT (!intr_context ());
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_front (&sema->waiters, &thread_current ()->fork_elem);
+		list_push_back (&sema->waiters, &thread_current ()->fork_elem);
 		thread_block ();
 	}
 	sema->value--;

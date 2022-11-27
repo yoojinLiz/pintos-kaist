@@ -71,6 +71,6 @@ void process_activate (struct thread *next);
 char * argument_parsing (char *f_name, struct intr_frame *_if);
 struct thread *get_child_process (tid_t child_tid);
 void copy_fd_list(struct thread* parent,struct thread* child);
-
+void delete_all_fd();
 
 #endif /* userprog/process.h */

@@ -120,6 +120,7 @@ struct thread
 	struct list_elem fork_elem;
 	struct list_elem wait_elem;
 	struct semaphore wait_sema;
+	bool make_child_success;
 
 	int fd_count;
 	struct list fd_list;
