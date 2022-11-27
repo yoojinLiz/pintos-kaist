@@ -356,7 +356,7 @@ process_exec (void *f_name) {
 	
 	passing_argument(f_name, &_if);
 	
-	palloc_free_page(file_name); // load 에서 할당된 페이지 해제 
+	// palloc_free_page(file_name); 
 	// palloc_free_page(fn_copy); // 이걸 해주는 게 맞다고는 생각되는데 얘를 포함하면 전체 커널 패닉이 발생해서 우선 주석처리
 
 	/* Start switched process. */
@@ -401,12 +401,6 @@ process_wait (tid_t child_tid) {
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-
-
-	// /* TODO: Your code goes here.
-	//  * TODO: Implement process termination message (see
-	//  * TODO: project2/process_termination.html).
-	//  * TODO: We recommend you to implement process resource cleanup here. */
 	if(curr->pml4 > KERN_BASE)
 		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
 	syscall_wait_sema_up();
@@ -781,64 +775,6 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
-
-
-
-// * 수정 나중에 yj가 수정하기로함 ^^
-char * argument_parsing (char *f_name, struct intr_frame *_if) {
-	int *argv[LOADER_ARGS_LEN / 2 + 1];
-	char *token , *save_ptr, *file_name;	
-	int argc , i, k;
-	file_name = strtok_r (f_name, " ", &save_ptr);
-	argv[0] = file_name; 
-	// printf("argv[0]는 %s\n\n", argv[0]);
-
-	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
-	argc = 1 ;
-	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-		argv[argc] = token; // token 문자열의 시작지점 
-		argc ++;
-		// printf("argv[%d]는 %s\n\n", argc-1, argv[argc-1]);
-	}
-	
-	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨 
-	for (i = argc-1; i>-1; i--) {
-		k = strlen(argv[i]);
-		printf("rsp 주소는 %p \n", _if->rsp);
-		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
-
-		memset(_if->rsp, '\0', k+1); // 
-		memcpy(_if->rsp, argv[i], k);
-		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
-	}
-
-	//* word-aligned 해야 함 
-	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-		_if->rsp -= pad ; // 포인터를 내리고
-		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
-	}
-
-	//* 스택에 널포인터 push 
-	_if->rsp -= 8;
-	memset(_if->rsp, 0,8);
-
-
-	//* 스택에 역순으로 push 
-	for (i = argc -1; i>-1; i--) {
-		_if->rsp -=8 ; 
-		memcpy(_if->rsp, &argv[i], 8) ; 
-	}
-	_if->R.rdi = argc ; 
-	_if->R.rsi = _if->rsp ; 
-
-	// //* 스택에 fake return address 인 0 push 
-	_if->rsp -= 8;
-	memset(_if->rsp, 0,8);
-	hex_dump(_if->rsp, _if->rsp, 100, true);
-
-	return file_name; 
-}  
 
 // 자식 스레드 tid를 가지고 현재 스레드의 children 리스트 검색 - 찾으면 해당 스레드 반환 
 // struct thread *get_child_process (tid_t child_tid) {
