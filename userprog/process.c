@@ -21,6 +21,9 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
+
+#include "include/userprog/syscall.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -104,23 +107,29 @@ initd(void *f_name)
 tid_t process_fork(const char *name, struct intr_frame *if_)
 {
 
+
 	// 	/* Clone current thread to new thread.*/
 
 	struct fork_info *fork_info = (struct fork_info *)malloc(sizeof(struct fork_info));
 	fork_info->parent_t = thread_current();
 	fork_info->if_ = if_;
 
+
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_info);
 
+
 	process_fork_sema_down();
+
 
 	if (!thread_current()->make_child_success)
 	{
 		return -1;
 	}
 	return pid;
+
 }
+
 
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
@@ -136,10 +145,13 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	void *newpage;
 	bool writable;
 
+
 	/* 1. TODO: If the parent_page is kernel page, then return immediately.*/
 	if is_kernel_vaddr (va)
 	{
 		return true;
+
+
 	}
 
 	/* 2. Resolve VA from the parent's page map level 4.
@@ -147,13 +159,17 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	pml4_get_page가 리턴하는 거는 "커널주소"를 리턴한다. 어떤 커널주소를 리턴하냐면? 찾은 물리주소와 연결된 커널의 주소를 리턴함.
 	즉 va의 물리주소를 찾아서 그 물리주소와 연결 되어있는 커널주소를 반환하는 함수임. if)물리주소가 매핑 안되어있으면 NULL반환 */
 
+
 	parent_page = pml4_get_page(parent->pml4, va);
 	if (parent_page == NULL)
 	{
 		return false;
 	}
 
+
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to NEWPAGE.*/
+
+
 	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
 	if (newpage == NULL)
 	{
@@ -164,6 +180,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	/*페이지를 할당 받을 건데 PAL_USER플레그를 줌으로써 유저가 쓸 수 있는 메모리 pool에서 페이지를 가져올거고
 	PAL_ZERO를 씀으로써 할당받은 페이지 메모리를 0으로 초기화 할 거임.
 	https://casys-kaist.github.io/pintos-kaist/appendix/memory_allocation.html 참고*/
+
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -177,6 +194,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	if (!pml4_set_page(current->pml4, va, newpage, writable))
 	{
 		/* 6. TODO: if fail to insert page, do error handling. */
+
 		palloc_free_page(newpage);
 		return false;
 	}
@@ -184,38 +202,47 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 }
 #endif
 
-/* A thread function that copies parent's execution context.
- fork할 때 부모프로세스의 context(유전자)를 복사하는 함수
+/* A thread function that copies parent's execution context. fork할 때 부모프로세스의 context(유전자)를 복사하는 함수
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
 
 static void
+
 __do_fork(void *aux)
 {
 	struct intr_frame if_;
 	struct fork_info *fork_info = (struct fork_info *)aux;
 	struct thread *parent = fork_info->parent_t;
 	struct thread *current = thread_current();
+
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+
 	struct intr_frame *syscall_if;
 	syscall_if = fork_info->if_;
 
+	// struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
+
 	/* 1. Read the cpu context to local stack. */
+
 	memcpy(&if_, syscall_if, sizeof(struct intr_frame));
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
+
 	process_activate(current);
+
+
 
 #ifdef VM
 	supplemental_page_table_init(&current->spt);
 	if (!supplemental_page_table_copy(&current->spt, &parent->spt))
 		goto error;
 #else
+
 
 	if (!pml4_for_each(parent->pml4, duplicate_pte, fork_info))
 	{
@@ -228,6 +255,7 @@ __do_fork(void *aux)
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
+
 	copy_fd_list(parent, current);
 	process_init();
 	/* Finally, switch to the newly created process. */
@@ -238,6 +266,7 @@ __do_fork(void *aux)
 		free(fork_info);
 		if_.R.rax = 0;
 		process_fork_sema_up();
+
 		thread_yield();
 		do_iret(&if_);
 	}
@@ -250,84 +279,97 @@ error:
 	thread_exit();
 }
 
-int process_exec(void *f_name)
-{
+
+
+void passing_argument(char *f_name, struct intr_frame *_if) {
+	char *token , *save_ptr;
+	int *argv[LOADER_ARGS_LEN / 2 + 1]; 
+	int argc , i;
+	int k ; 
 	bool success;
+	
+	// 인자 parsing 해서 스택에 push 
+	char * file_name = strtok_r (f_name, " ", &save_ptr);
+	argv[0] = file_name;
+
+	// 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다. 
+	argc = 1 ;
+	for (token = strtok_r (NULL, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[argc] = token; // token 문자열의 시작지점 
+		argc ++;
+	}
+
+	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열 
+	for (i = argc-1; i>-1; i--) {
+		k = strlen(argv[i]);
+		_if->rsp -= (k+1); // 마지막 공백 문자까지 고려해서 +1 
+		memset(_if->rsp, '\0', k+1);
+		memcpy(_if->rsp, argv[i], k);
+		argv[i]= (char *)(_if->rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다. 
+	}
+
+	// word-aligned 
+	if (_if->rsp %8 ){ // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
+		int pad = _if->rsp % 8 ;  //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
+		_if->rsp -= pad ; // 포인터를 내리고
+		memset(_if->rsp, 0, pad); // 7만큼 0으로 채운다 
+	}
+
+	// 스택에 널포인터 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
+
+	// 스택에 역순으로 push 
+	for (i = argc -1; i>-1; i--) {
+		_if->rsp -=8 ; 
+		memcpy(_if->rsp, &argv[i], 8) ; 
+	}
+
+	_if->R.rdi = argc ; 
+	_if->R.rsi = _if->rsp ; 
+
+	// 스택에 fake return address 인 0 push 
+	_if->rsp -= 8;
+	memset(_if->rsp, 0,8);
+}
+
+
+int
+process_exec (void *f_name) { 
+	bool success;
+	char *not_used; 
 	/* We cannot use the intr_frame in the thread structure. This is because when current thread rescheduled,
 	   it stores the execution information to the member. */
+	
+	/* We first kill the current context */
+	process_cleanup ();
+
 	struct intr_frame _if;
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
-	/* We first kill the current context */
-	process_cleanup();
-	char *token, *save_ptr;
-	int argc, i;
-	int *argv[LOADER_ARGS_LEN / 2 + 1];
-	int k;
 
-	//* 인자 parsing 해서 스택에 push
-	char *file_name = strtok_r(f_name, " ", &save_ptr);
-	argv[0] = file_name;
-	/* And then load the binary */
-	success = load(file_name, &_if);
+	char * fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL)
+		return TID_ERROR;
+	strlcpy (fn_copy, f_name, PGSIZE); // filename을 fn_copy로 복사 
+	char *file_name = strtok_r(fn_copy," ",&not_used);
 
+	/* 실행 파일 로드 */
+	success = load (file_name, &_if);
 	if (!success)
 		return -1;
-
-	//* 파싱해서 load에서 사용하는 _if 에서 파싱한 값들의 주소를 이용해야 한다.
-	argc = 1;
-	for (token = strtok_r(NULL, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr))
-	{
-		argv[argc] = token; // token 문자열의 시작지점
-		argc++;
-	}
-
-	// 이제 argc 는 인자의 갯수, argv는 각 문자열의 주소 담은 배열이 됨
-	for (i = argc - 1; i > -1; i--)
-	{
-		k = strlen(argv[i]);
-		_if.rsp -= (k + 1); // 마지막 공백 문자까지 고려해서 +1
-		memset(_if.rsp, '\0', k + 1);
-		memcpy(_if.rsp, argv[i], k);
-		argv[i] = (char *)(_if.rsp); // rsp 에 담긴 문자열의 주소를 argv[i] 로 다시 넣어준다.
-	}
-
-	//* word-aligned 해야 함
-	if (_if.rsp % 8)
-	{							 // rsp 주소값을 8로 나눴을 때 나머지가 존재한다면 8의 배수가 아니라는 것 -> 0으로 채워줘야 한다.
-		int pad = _if.rsp % 8;	 //만약에 rsp가 15라면 rsp는 8까지 내려와야 함 -> 15%8인 7만큼 내려야 함
-		_if.rsp -= pad;			 // 포인터를 내리고
-		memset(_if.rsp, 0, pad); // 7만큼 0으로 채운다
-	}
-
-	//* 스택에 널포인터 push
-	_if.rsp -= 8;
-	memset(_if.rsp, 0, 8);
-
-	//* 스택에 역순으로 push
-	for (i = argc - 1; i > -1; i--)
-	{
-		_if.rsp -= 8;
-		memcpy(_if.rsp, &argv[i], 8);
-	}
-
-	_if.R.rdi = argc;
-	_if.R.rsi = _if.rsp;
-
-	//* 스택에 fake return address 인 0 push
-	_if.rsp -= 8;
-	memset(_if.rsp, 0, 8);
-	// hex_dump(_if.rsp, _if.rsp, 100, true);
+	
+	passing_argument(f_name, &_if);
+	
+	// palloc_free_page(file_name); 
+	// palloc_free_page(fn_copy); // 이걸 해주는 게 맞다고는 생각되는데 얘를 포함하면 전체 커널 패닉이 발생해서 우선 주석처리
 
 	/* Start switched process. */
-	/* If load failed, quit. */
-	palloc_free_page(file_name); // 이건 왜 하는걸가? 왜 free를 해야 하지...? 그냥 안의 내용물을 깨끗하게 비우는 작업인건가???
-	// hex_dump(USER_STACK -1024, USER_STACK -1024,1024,true);
+	do_iret (&_if); 
+	NOT_REACHED (); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임 
 
-	do_iret(&_if); // 프로세스를 실행하는 어셈블리 코드로 가득한 함수
-	NOT_REACHED(); // 실행되면 panic이 발생하는 코드. 코드에 도달하게 하지 않도록 추가해 놓은 코드임
 }
 
 /* Waits for thread TID to die and returns its exit status.
@@ -356,6 +398,7 @@ int process_wait(tid_t child_tid)
 }
 
 /* Exit the process. This function is called by thread_exit (). */
+
 void process_exit(void)
 {
 
@@ -381,6 +424,7 @@ void process_exit(void)
 	}
 	process_cleanup();
 	sema_up(&parent->wait_sema);
+
 }
 
 /* Free the current process's resources. */
@@ -462,6 +506,7 @@ load(const char *file_name, struct intr_frame *if_)
 		printf("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	file_deny_write(file);
 
 
 	/* Read and verify executable header. */
@@ -775,6 +820,7 @@ setup_stack(struct intr_frame *if_)
 }
 #endif /* VM */
 
+
 void copy_fd_list(struct thread *parent, struct thread *child)
 {
 	struct list *p_fd_list, *c_fd_list;
@@ -806,6 +852,7 @@ void copy_fd_list(struct thread *parent, struct thread *child)
 		}
 		cur = list_next(cur);
 	}
+
 }
 
 //* 현재스레드의 fd_list clear
@@ -881,6 +928,7 @@ void clear_children_list()
 			free(child_info);
 		}
 	}
+
 }
 
 //* 자식의 exit_code가 변경될 때 부모가 child의 exit_code를 알수 있도록 변경

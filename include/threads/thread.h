@@ -112,6 +112,7 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
+
 	int exit_code; //* 쓰레드가 종료할떄 상태인 exit_code
 
 	struct thread *parent_thread; //* 2주차 수정 : 부모 프로레스(스레드)의 tid
@@ -126,6 +127,7 @@ struct thread
 	tid_t wait_tid;
 	// fork 성공적인지 확인
 	bool make_child_success;
+
 
 	int fd_count;
 

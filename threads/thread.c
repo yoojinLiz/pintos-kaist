@@ -236,6 +236,7 @@ tid_t thread_create(const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock(t);
 	test_max_priority();
+	
 
 	return tid;
 }
@@ -497,6 +498,7 @@ init_thread(struct thread *t, const char *name, int priority)
 	sema_init(&t->wait_sema,0);
 	t->make_child_success = true;
 	t->exit_code = EXIT_CODE_DEFAULT;
+	
 	
 
 }
