@@ -102,7 +102,7 @@ void print_values(struct intr_frame *f,int type);
 
 bool check_ptr_address(struct intr_frame *f);
 
-struct list_elem* find_elem_match_fd_value(int fd_value);
+struct fd * find_matched_fd(int fd_value);
 
 struct syscall_func syscall_func[] = {
 	{SYS_HALT,syscall_halt},
@@ -229,8 +229,13 @@ bool syscall_create (struct intr_frame *f){
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
 	bool success ; 
-	char* file = f->R.rdi ; // rdi : 파일 이름   
+	char* file = f->R.rdi ; 
+
 	check_addr(file); 
+	if(file == NULL){
+		syscall_abnormal_exit(-1);
+	}
+	
 	success = filesys_remove(file);
 	f->R.rax = success; 
 	return success;
@@ -239,13 +244,13 @@ bool syscall_remove (struct intr_frame *f){
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
+	check_addr(f->R.rdi);
 
-	struct file *open_file;
 	struct list * fd_list;
+	struct file *open_file;
 	struct ELF64_hdr ehdr;
 
 	fd_list = &thread_current()->fd_list;
-	check_addr(f->R.rdi);
 	
 	open_file = filesys_open(f->R.rdi);
 	if(open_file == NULL){
@@ -253,7 +258,8 @@ int syscall_open (struct intr_frame *f){
 		return -1;
 	}
 	
-	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
+	struct fd *fd = (struct fd*)malloc(sizeof(struct fd)); 
+	// ? 여기서 fd에 할당한 메모리는 언제 해제 해주나요? 
 
 	fd->value = thread_current()->fd_count + 1;
 	fd->file = open_file;
@@ -270,7 +276,7 @@ int syscall_open (struct intr_frame *f){
 		|| ehdr.e_phnum > 1024)){
 			file_deny_write(fd->file);
 		}
-	open_file->pos=0;
+	open_file->pos=0; 
 	f->R.rax = fd->value;
 	return fd->value;
 }
@@ -278,21 +284,16 @@ int syscall_open (struct intr_frame *f){
 
 // filesize func parameter : int fd
 int syscall_filesize (struct intr_frame *f){
-
 	int fd_value = f->R.rdi;
-	struct list_elem * find_elem;
-	struct fd *find_fd;
-
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
+	struct fd *	find_fd= find_matched_fd(fd_value);
+	
+	if(find_fd == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
-	find_fd = list_entry(find_elem, struct fd, elem);
-
-	struct inode * find_inode = file_get_inode(find_fd->file);
-	
-	int size = inode_length(find_inode);
+	int size = file_length (find_fd->file); //* file_length 함수에서 아래의 두 작업을 진행합니다!
+	// struct inode * find_inode = file_get_inode(find_fd->file);
+	// int size = inode_length(find_inode);
 	f->R.rax = size;
 	return size;
 }
@@ -312,22 +313,16 @@ int syscall_read (struct intr_frame *f){
 	struct fd * read_fd;
 	struct ELF64_hdr ehdr;
 
-	read_elem = find_elem_match_fd_value(fd_value);
+	read_fd = find_matched_fd(fd_value);
 
-	if(read_elem == NULL){
+	if(read_fd == NULL){
 		f->R.rax = -1;
 		return -1;
-	}
-
-	read_fd = list_entry(read_elem, struct fd, elem);
-	if(read_fd == NULL){
-		return;
 	}
 
 	struct inode * find_inode = file_get_inode(read_fd->file);
 	int filesize = inode_length(find_inode);
 
-	
 	return_value = file_read(read_fd->file,buf,size);
 
 	f->R.rax = return_value;
@@ -352,16 +347,11 @@ void syscall_write(struct intr_frame *f){
 	struct fd * write_fd;
 	struct file *file;
 
-	write_elem = find_elem_match_fd_value(fd_value);
+	write_fd = find_matched_fd(fd_value);
 
-	if(write_elem == NULL){
+	if(write_fd == NULL){
 		f->R.rax = -1;
 		return -1;
-	}
-
-	write_fd = list_entry(write_elem, struct fd, elem);
-	if(write_fd == NULL){
-		return;
 	}
 
 	if(write_fd->file->deny_write){
@@ -385,16 +375,12 @@ void syscall_seek (struct intr_frame *f){
 	unsigned int offset = f->R.rsi;
 	
 	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
+	struct fd* find_fd ;
 
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
+	find_fd = find_matched_fd(fd_value);
+	if (find_fd == NULL) {
 		syscall_abnormal_exit(-1);
 	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
 	file_seek(find_fd->file,offset);
 }
 
@@ -403,15 +389,12 @@ void syscall_seek (struct intr_frame *f){
 unsigned syscall_tell (struct intr_frame *f){
 	int fd_value = f->R.rdi;
 	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
+	struct fd* find_fd ;
 
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
+	find_fd = find_matched_fd(fd_value);
+	if (find_fd == NULL) {
 		syscall_abnormal_exit(-1);
 	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
 
 	unsigned int position = file_tell(find_fd->file);
 
@@ -422,22 +405,16 @@ unsigned syscall_tell (struct intr_frame *f){
 
 // close func larameter : int fd
 void syscall_close (struct intr_frame *f){
-
 	int fd_value = f->R.rdi;
 	struct list *fd_list = &thread_current()->fd_list;
-	struct list_elem * find_elem;
+	struct fd* find_fd ;
 
-
-	find_elem = find_elem_match_fd_value(fd_value);
-	if(find_elem == NULL){
+	find_fd = find_matched_fd(fd_value);
+	if (find_fd == NULL) {
 		syscall_abnormal_exit(-1);
 	}
-
-	fd_list = list_entry(find_elem, struct fd, elem);
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
-
 	file_close(find_fd->file);
-	list_remove(find_elem);
+	list_remove(&find_fd->elem);
 	free(find_fd);
 }
 
@@ -494,8 +471,8 @@ void check_addr(void * addr) {
 	}
 }
 
-struct list_elem*
-find_elem_match_fd_value(int fd_value){
+struct fd *
+find_matched_fd(int fd_value){
 
 	struct list *fd_list = &thread_current()->fd_list;
 	struct list_elem * cur;
@@ -509,12 +486,14 @@ find_elem_match_fd_value(int fd_value){
 	{
 		struct fd *find_fd = list_entry(cur, struct fd, elem);
 		if(find_fd->value == fd_value){
-			return cur;
+			return find_fd;
+;
 		}
 		cur = list_next(cur);
 	}
 	return NULL;
 }
+
 
 
 
