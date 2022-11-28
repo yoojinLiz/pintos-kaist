@@ -14,6 +14,8 @@
 
 #define USERPROG
 
+#define EXIT_CODE_DEFAULT -2
+#define EXIT_CODE_ERROR -1
 /* States in a thread's life cycle. */
 enum thread_status
 {
@@ -21,6 +23,13 @@ enum thread_status
 	THREAD_READY,	/* Not running but ready to run. */
 	THREAD_BLOCKED, /* Waiting for an event to trigger. */
 	THREAD_DYING	/* About to be destroyed. */
+};
+
+struct child_info
+{
+	uint32_t tid;
+	int exit_code;
+	struct list_elem elem;
 };
 
 /* Thread identifier type.
@@ -103,24 +112,30 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-	struct file *file; //* 2주차 쓰레드가 직접 연 파일의 포인터
-	short exit_code;   //* 쓰레드가 종료할떄 상태인 exit_code
 
-	tid_t parent_tid;				//* 2주차 수정 : 부모 프로레스(스레드)의 tid
-	tid_t children;					//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
-	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
-	struct list_elem all_elem;
+	int exit_code; //* 쓰레드가 종료할떄 상태인 exit_code
 
-	struct semaphore *fork_sema; //* 2주차 수정: 자식 스레드가 do_fork를 진행하는 동안 인터럽트 금지
+	struct thread *parent_thread; //* 2주차 수정 : 부모 프로레스(스레드)의 tid
+	struct list children_list;	  //* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
 
-	// *? 멀티 스레드가 아니므로 tid_t pid_t 동일?
-	// https://stackoverflow.com/questions/4517301/difference-between-pid-and-tid
+	struct list_elem fork_elem;
+	struct list_elem wait_elem;
 
-	struct intr_frame parent_if; // _fork() 구현 때 사용, __do_fork() 함수
-	struct file *fd_table[10];
+	struct semaphore wait_sema;
+	
+	//* 나를 기다리는 tid
+	tid_t wait_tid;
+	// fork 성공적인지 확인
+	bool make_child_success;
+
 
 	int fd_count;
+
+	//오픈된 파일 리스트
 	struct list fd_list;
+
+	//실행중인 파일 리스트
+	struct file* exec_file;
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */
@@ -189,9 +204,9 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-int exit_code_dead_child(int tid);
-void syscall_wait_sema_down();
-void syscall_wait_sema_up();
+//* 2주차 프로젝트 동안 추가한 함수
+void process_fork_sema_down();
+void process_fork_sema_up();
+void thread_unblock_front(struct thread *t);
 
-bool check_exist(int pid);
 #endif /* threads/thread.h */

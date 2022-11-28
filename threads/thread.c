@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/flags.h"
+#include "threads/malloc.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
@@ -46,7 +47,8 @@ static struct lock tid_lock;
 /* Thread destruction requests */
 static struct list destruction_req;
 
-static struct semaphore wait_sema;
+// static struct semaphore wait_sema;
+static struct semaphore fork_sema;
 
 /* Statistics. */
 static long long idle_ticks;   /* # of timer ticks spent idle. */
@@ -119,10 +121,10 @@ void thread_init(void)
 	/* Init the globla thread context */
 	lock_init(&tid_lock);
 	list_init(&ready_list);
-	sema_init(&wait_sema,0);
+	// sema_init(&wait_sema,0);
+	sema_init(&fork_sema,0);
 	list_init(&destruction_req);
-	//* 2주차
-	list_init(&all_list);
+
 
 	//* 1주차 프로젝트 동안 추가한 코드
 	list_init(&sleep_list);
@@ -222,8 +224,14 @@ tid_t thread_create(const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	// t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
-	// list_push_back(&thread_current()->children, &t->children_elem); //* 현재스레드의 자식 리스트에 생성중인 스레드를 추가
+	t->parent_thread = thread_current();
+	struct list * children_list = &thread_current()->children_list;
+	struct child_info * tep = (struct child_info*)malloc(sizeof(struct child_info));
+	tep->tid = t->tid;
+	tep->exit_code = EXIT_CODE_DEFAULT;
+	list_push_back(children_list,&tep->elem);
+
+
 
 	/* Add to run queue. */
 	thread_unblock(t);
@@ -265,12 +273,29 @@ void thread_unblock(struct thread *t)
 	ASSERT(t->status == THREAD_BLOCKED);
 
 	//* 1주차 수정: 우선순위 스케쥴링을 위해 push back이 아닌 insert_ordered를 사용한다
-	// list_push_back (&ready_list, &t->elem);
+	// list_push_front (&ready_list, &t->elem);
 	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 
 	t->status = THREAD_READY;
 	intr_set_level(old_level);
 }
+
+void thread_unblock_front(struct thread *t)
+{
+	enum intr_level old_level;
+
+	ASSERT(is_thread(t));
+
+	old_level = intr_disable();
+	ASSERT(t->status == THREAD_BLOCKED);
+
+	list_push_front (&ready_list, &t->elem);
+
+	t->status = THREAD_READY;
+	intr_set_level(old_level);
+}
+
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -309,11 +334,16 @@ tid_t thread_tid(void)
 void thread_exit(void)
 {
 	ASSERT(!intr_context());
+	// printf("exit now tid = %d\n",thread_current()->tid);
+	// printf("exit now code = %d\n",thread_current()->exit_code);
+	// printf("now sema value = %d\n",thread_current()->parent_sema.value);
 
 #ifdef USERPROG
 	process_exit();
 #endif
-
+	// struct list_elem * redy =list_begin(&ready_list);
+	// struct thread* th = list_entry(redy,struct thread,elem);
+	// printf("list first tid = %d\n",th->tid);
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable();
@@ -460,16 +490,14 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->wait_on_lock = NULL;
 	list_init(&t->donations);
 
-
 	//* 2주차 추가
 	t->fd_count = 2;
 	list_init(&t->fd_list);
-	list_push_back(&all_list,&t->all_elem);
-	// list_init(&t->children);
-	
+	list_init(&t->children_list);
 
-
-	t->exit_code = -2;
+	sema_init(&t->wait_sema,0);
+	t->make_child_success = true;
+	t->exit_code = EXIT_CODE_DEFAULT;
 	
 	
 
@@ -812,34 +840,13 @@ void refresh_priority(void)
 	}
 }
 
-int exit_code_dead_child(int tid)
-{
 
-	if (list_empty(&destruction_req))
-	{
-		return -2;
-	}
-	return find_exit_code(&destruction_req, tid);
+void process_fork_sema_down(){
+	fork_sema_down(&fork_sema);
 }
 
-void syscall_wait_sema_down(){
-	enum intr_level old_level;
-	old_level = intr_disable();
-	syscall_sema_down(&wait_sema);
-	intr_set_level(old_level);
+void process_fork_sema_up(){
+	fork_sema_up(&fork_sema);
 }
 
-void syscall_wait_sema_up(){
-	enum intr_level old_level;
-	old_level = intr_disable();
-	sema_up(&wait_sema);
-	intr_set_level(old_level);
-}
 
-bool check_exist(int pid){
-
-	if(list_empty(&all_list)){
-		return false;
-	}
-	return find_all_list(&all_list,pid);
-}

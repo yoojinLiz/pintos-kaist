@@ -62,6 +62,8 @@ void process_activate (struct thread *next);
 
 struct thread *get_child_process (tid_t child_tid);
 void copy_fd_list(struct thread* parent,struct thread* child);
-
-
+void clear_fd_list();
+void del_child_info();
+void clear_children_list();
+void update_child_exit_code();
 #endif /* userprog/process.h */

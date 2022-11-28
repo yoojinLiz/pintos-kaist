@@ -160,9 +160,3 @@ file_tell (struct file *file) {
 	return file->pos;
 }
 
-bool cmp_fd (struct list_elem *a, struct list_elem *b, void *aux){
-    struct fd *fd_a = list_entry(a, struct fd, elem);
-    struct fd *fd_b = list_entry(b, struct fd, elem);
-	// a의 우선순위가 높다면 1, b의 우선순위가 높다면 0 을 반환 
-    return (fd_a->value>fd_b->value);
-}

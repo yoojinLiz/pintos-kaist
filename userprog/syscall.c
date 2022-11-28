@@ -61,6 +61,8 @@ syscall_init (void) {
 	 * mode stack. Therefore, we masked the FLAG_FL. */
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+
+	lock_init(&filesys_lock);
 }
 
 /* The main system call interface */
@@ -130,8 +132,6 @@ syscall_handler (struct intr_frame *f) {
 
 	// !전체 시스템 콜에 영향을 주는 곳입니다. 최대한 작성을 지양 해주세요
 
-	// print_values(f,0);
-
 	struct syscall_func call = syscall_func[f->R.rax];
 	call.function (f);
 
@@ -154,12 +154,9 @@ void syscall_exit(struct intr_frame *f){
 pid_t syscall_fork (struct intr_frame *f){
 
 
-
 	char * thread_name = f->R.rdi;
-
 	int return_value;
 	return_value = process_fork(thread_name, f);
-
 	f->R.rax = return_value;
 
 }
@@ -175,19 +172,19 @@ int syscall_exec (struct intr_frame *f){
 
 	check_addr(file_name);
 	fn_copy = palloc_get_page (0); 
-
 	if (fn_copy == NULL)
 	{
-		syscall_abnormal_exit(-1);
+		syscall_abnormal_exit(EXIT_CODE_ERROR);
 		palloc_free_page(fn_copy);
+		f->R.rax = -1;
 		return -1;
 	}
 	strlcpy (fn_copy, file_name, PGSIZE); // filename을 fn_copy로 복사 
 	if (process_exec (fn_copy) < 0) {
 		palloc_free_page(fn_copy);
+		f->R.rax = -1;
 		syscall_abnormal_exit(-1);
 	}
-    return 0;
 
 }
 
@@ -195,19 +192,25 @@ int syscall_exec (struct intr_frame *f){
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
+	struct child_info * child_info = search_children_list(pid);
 
-	if(!check_exist(pid)){
+	if(child_info == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
-	// check_addr(f->R.rdi);
-	int return_value = 0;
-	if(exit_code_dead_child(pid) != -2){
-		f->R.rax = -1;
-		return -1;
+
+	int return_value;
+
+	if(child_info->exit_code == EXIT_CODE_DEFAULT){
+		return_value = process_wait(pid);
+		f->R.rax = return_value;
+	}else{
+		return_value = child_info->exit_code;
+		f->R.rax = return_value;
 	}
-	return_value = process_wait(pid);
-	f->R.rax = return_value;
+
+	list_remove(&child_info->elem);
+	free(child_info);
 	return return_value;
 }
 
@@ -220,7 +223,10 @@ bool syscall_create (struct intr_frame *f){
 	if(f->R.rdi == NULL){
 		syscall_abnormal_exit(-1);
 	}
+
+	lock_acquire(&filesys_lock);
 	success = filesys_create(f->R.rdi,f->R.rsi);
+	lock_release(&filesys_lock);
 	f->R.rax = success;
 	return success;
 }
@@ -228,15 +234,18 @@ bool syscall_create (struct intr_frame *f){
 
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
+
 	bool success ; 
 	char* file = f->R.rdi ; 
 
 	check_addr(file); 
-	if(file == NULL){
-		syscall_abnormal_exit(-1);
-	}
-	
+
+
+	lock_acquire(&filesys_lock);
+
 	success = filesys_remove(file);
+	lock_release(&filesys_lock);
+
 	f->R.rax = success; 
 	return success;
 }
@@ -247,38 +256,40 @@ int syscall_open (struct intr_frame *f){
 	check_addr(f->R.rdi);
 
 	struct list * fd_list;
-	struct file *open_file;
-	struct ELF64_hdr ehdr;
+
+
+	if(thread_current()->fd_count > 20){
+		f->R.rax = -1;
+		return -1;
+	}
+
 
 	fd_list = &thread_current()->fd_list;
 	
+	// lock_acquire(&filesys_lock);
 	open_file = filesys_open(f->R.rdi);
+	// lock_release(&filesys_lock);
+
 	if(open_file == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
-	
-	struct fd *fd = (struct fd*)malloc(sizeof(struct fd)); 
-	// ? 여기서 fd에 할당한 메모리는 언제 해제 해주나요? 
+
+
+
+	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
+
 
 	fd->value = thread_current()->fd_count + 1;
 	fd->file = open_file;
-	list_push_back(fd_list,&fd->elem);
+
+	list_push_front(fd_list,&fd->elem);
 	thread_current()->fd_count +=1;
 
-	// open 시 해더파일을 읽어서 excutable 한 파일인지 확인
-	if(!(file_read (fd->file, &ehdr, sizeof ehdr) != sizeof ehdr
-		|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
-		|| ehdr.e_type != 2
-		|| ehdr.e_machine != 0x3E // amd64
-		|| ehdr.e_version != 1
-		|| ehdr.e_phentsize != sizeof (struct ELF64_PHDR)
-		|| ehdr.e_phnum > 1024)){
-			file_deny_write(fd->file);
-		}
-	open_file->pos=0; 
+
 	f->R.rax = fd->value;
 	return fd->value;
+	return 0;
 }
 
 
@@ -323,8 +334,10 @@ int syscall_read (struct intr_frame *f){
 	struct inode * find_inode = file_get_inode(read_fd->file);
 	int filesize = inode_length(find_inode);
 
-	return_value = file_read(read_fd->file,buf,size);
+	lock_acquire(&filesys_lock);
 
+	return_value = file_read(read_fd->file,buf,size);
+	lock_release(&filesys_lock);
 	f->R.rax = return_value;
 	return return_value;
 }
@@ -354,14 +367,18 @@ void syscall_write(struct intr_frame *f){
 		return -1;
 	}
 
-	if(write_fd->file->deny_write){
-		f->R.rax = 0;
-		return;
-	}
-	struct inode * find_inode = file_get_inode(write_fd->file);
-	int filesize = inode_length(find_inode);
 
+	write_fd = list_entry(write_elem, struct fd, elem);
+
+	if(write_fd == NULL || write_fd->file->deny_write){
+		f->R.rax = -1;
+		return -1;
+
+	}
+
+	lock_acquire(&filesys_lock);
 	return_value = file_write(write_fd->file,buf,size);
+	lock_release(&filesys_lock);
 
 	f->R.rax = return_value;
 	return return_value;
@@ -413,9 +430,17 @@ void syscall_close (struct intr_frame *f){
 	if (find_fd == NULL) {
 		syscall_abnormal_exit(-1);
 	}
+
+
+	// fd_list = list_entry(find_elem, struct fd, elem);
+
+	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+	lock_acquire(&filesys_lock);
+
 	file_close(find_fd->file);
 	list_remove(&find_fd->elem);
 	free(find_fd);
+	lock_release(&filesys_lock);
 }
 
 
@@ -496,4 +521,9 @@ find_matched_fd(int fd_value){
 
 
 
-
+void file_lock_acquire(){
+	lock_acquire(&filesys_lock);
+}
+void file_lock_release(){
+	lock_release(&filesys_lock);
+}
