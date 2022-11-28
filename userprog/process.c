@@ -116,11 +116,10 @@ process_fork (const char *name, struct intr_frame *if_) {
 	// 포크 하기 전에 스택정보(_if)를 미리 복사 떠놓는 중. 포크로 생긴 자식에게 전해주려고 
 	// memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
 
-	// printf("i(%d) forked %d  ",thread_current()->tid,pid);
 	// printf("tid_error = %d\n",TID_ERROR);
 
 	tid_t pid = thread_create(name, PRI_DEFAULT, __do_fork, fork_argv);
-
+	// printf("i(%d) forked %d \n",thread_current()->tid,pid);
 
 
 	enum intr_level old_level;
@@ -250,14 +249,15 @@ __do_fork (void *aux) {
 	if (succ){
 		parent->make_child_success = true;
 		free(fork_argv);
-		// process_fork_sema_up();
-		// thread_yield();
+		process_fork_sema_up();
+		thread_yield();
 		do_iret (&if_);
 	}
 error:
 	parent->make_child_success = false;
 	free(fork_argv);
 	thread_current()->exit_code = -1;
+	process_fork_sema_up();
 
 	struct thread_exit_pack * tep;
 	struct list * children_list = &parent->children_list;
@@ -376,21 +376,25 @@ process_wait (tid_t child_tid) {
 	
 	struct list* child_list = &thread_current()->children_list;
 	struct list_elem * child_elem;
-	// struct thread * child_thread;
+	struct thread * child_thread;
 	struct thread_exit_pack* child_tep;
 	struct semaphore * sema;
+	sema = &thread_current()->wait_sema;
 
-	child_tep = check_exist(child_tid);
-
-	if(child_tep != NULL){
-		sema = &thread_current()->wait_sema;
-		syscall_sema_down(sema);
+	while ((check_exist(child_tid))->exit_code == EXIT_CODE_DEFAULT)
+	{
+		wait_sema_down(sema);
+		// printf("thread_current = %d\n",thread_current()->tid);
 	}
+		// printf("thread_current_exit_code = %d\n",thread_current()->exit_code);
 
+	child_tep = (check_exist(child_tid));
+	// hex_dump(child_tep,child_tep,100,true);
 	int first_exit_code = child_tep->exit_code;
-	child_tep->exit_code = -1;
+	// printf("frist_exit_code = %d\n",child_tep->exit_code);
+	// child_tep->exit_code = -2;
+	// printf("frist_exit_code = %d\n",first_exit_code);
 	return first_exit_code;
-
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -399,11 +403,26 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	struct thread *parent = thread_current()->parent_thread;
 
-	// printf("i %d dying ",curr->tid);
+	struct thread_exit_pack * tep;
+	struct list * children_list = &parent->children_list;
+	struct list_elem * elem_cur;
 
+	// 부모쪽에 값 수정
+	if(!list_empty(children_list)){
+		elem_cur = list_begin(children_list);
+		int curr_tid = curr->tid;
+		while (elem_cur != list_end(children_list))
+		{
+			tep = list_entry(elem_cur,struct thread_exit_pack,elem);
+			if(tep->tid == curr->tid){
+				// printf("tep exit_code = %d\n",curr->exit_code);
+				tep->exit_code = curr->exit_code;
+				break;
+			}
+			elem_cur = list_next(elem_cur);
+		}
+	}
 
-	// free(fork_argv);
-	// 자신 tep wjscp tkrwp
 	struct thread_exit_pack * tep2;
 	struct list * children_list2 = &curr->children_list;
 	struct list_elem * elem_cur2;
@@ -421,8 +440,6 @@ process_exit (void) {
 
 	close_all_file();
 	delete_all_fd();
-	
-
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement process termination message (see
@@ -430,37 +447,15 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
 
-	struct thread_exit_pack * tep;
-	struct list * children_list = &parent->children_list;
-	struct list_elem * elem_cur;
-
-	// 부모쪽에 값 수정
-	if(!list_empty(children_list)){
-		elem_cur = list_begin(children_list);
-		int curr_tid = curr->tid;
-
-		while (elem_cur != list_end(children_list))
-		{
-			tep = list_entry(elem_cur,struct thread_exit_pack,elem);
-			if(tep->tid == curr->tid){
-				tep->exit_code = curr->exit_code;
-			}
-			elem_cur = list_next(elem_cur);
-		}
-
-	}
 
 
 	if(curr->pml4 > KERN_BASE)
 		printf ("%s: exit(%d)\n", curr->name,curr->exit_code);
 
 	process_cleanup ();
-
-	process_fork_sema_up();
-	syscall_sema_up(&parent->wait_sema);
-
-
-	// thread_yield();
+	// process_fork_sema_up();
+	// printf("sema up!!!\n");
+	wait_sema_up(&parent->wait_sema);
 }
 
 /* Free the current process's resources. */
@@ -886,7 +881,9 @@ void delete_all_fd(){
 	while (true)
 	{	
 		delete_fd = list_entry(cur,struct fd,elem);
+		file_lock_aquire();
 		file_close(delete_fd->file);
+		file_lock_release();
 		cur = list_remove(&delete_fd->elem);
 		free(delete_fd);
 		if(list_empty(fd_list)){

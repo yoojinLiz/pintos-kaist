@@ -58,4 +58,7 @@ void check_addr(void * addr); // 할당받는 유저 메모리 영역인지 확�
 struct list_elem* find_elem_match_fd_value(int fd_value);
 void close_all_file();
 void delete_all_fd();
+
+void file_lock_aquire();
+void file_lock_release();
 #endif /* userprog/syscall.h */

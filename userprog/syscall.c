@@ -149,6 +149,7 @@ void syscall_halt(void){
 void syscall_exit(struct intr_frame *f){
 	thread_current()->exit_code = f->R.rdi;
 	// printf("i am out %d\n",thread_current()->tid);
+	// printf("my code is %d\n",thread_current()->exit_code);
 	thread_exit();
 }
 
@@ -178,7 +179,7 @@ int syscall_exec (struct intr_frame *f){
 	fn_copy = palloc_get_page (0); 
 	if (fn_copy == NULL)
 	{
-		syscall_abnormal_exit(-1);
+		syscall_abnormal_exit(EXIT_CODE_ERROR);
 		palloc_free_page(fn_copy);
 		f->R.rax = -1;
 		return -1;
@@ -189,30 +190,34 @@ int syscall_exec (struct intr_frame *f){
 		f->R.rax = -1;
 		syscall_abnormal_exit(-1);
 	}
-    return 0;
+
 }
 
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
-
-	// struct thread * check_thread = check_exist(pid);
+	// printf("i (%d) will wait (%d)\n",thread_current()->tid,pid);
 	struct thread_exit_pack * tep = check_exist(pid);
 
 	if(tep == NULL){
-		// printf("null\n");
 		f->R.rax = -1;
 		return -1;
 	}
 
+	if(tep->exit_code != EXIT_CODE_DEFAULT){
+		int value = tep->exit_code;
+		f->R.rax = value;
+		list_remove(&tep->elem);
+		free(tep);
+		return value;
+	}
+
 	int return_value = 0;
-	// printf("i am %d i will wait %d \n",thread_current()->tid,pid);
 	return_value = process_wait(pid);
 
 	list_remove(&tep->elem);
 	free(tep);
 
-	// printf("here\n");
 	f->R.rax = return_value;
 	return return_value;
 }
@@ -271,9 +276,9 @@ int syscall_open (struct intr_frame *f){
 		return -1;
 	}
 
-	if(open_file == -1){
-		syscall_abnormal_exit(-1);
-	}
+	// if(open_file == -1){
+	// 	syscall_abnormal_exit(-1);
+	// }
 
 	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
 
@@ -464,6 +469,7 @@ void syscall_close (struct intr_frame *f){
 
 void syscall_abnormal_exit(short exit_code){
 	thread_current()->exit_code = exit_code;
+	// printf("abnormal exit tid = %d exit code = %d\n",thread_current()->tid,thread_current()->exit_code);
 	thread_exit();
 }
 
@@ -588,7 +594,12 @@ void close_one_file(struct file* file){
 	}
 }
 
-
+void file_lock_aquire(){
+	lock_acquire(&filesys_lock);
+}
+void file_lock_release(){
+	lock_release(&filesys_lock);
+}
 
 // void delete_all_fd(){
 

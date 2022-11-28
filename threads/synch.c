@@ -75,7 +75,7 @@ sema_down (struct semaphore *sema) {
 }
 
 void
-syscall_sema_down (struct semaphore *sema) {
+wait_sema_down (struct semaphore *sema) {
 	enum intr_level old_level;
 
 	ASSERT (sema != NULL);
@@ -83,7 +83,7 @@ syscall_sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_back(&sema->waiters,&thread_current()->sema_elem);
+		list_push_back(&sema->waiters,&thread_current()->wait_elem); 
 		thread_block ();
 	}
 	sema->value--;
@@ -92,7 +92,7 @@ syscall_sema_down (struct semaphore *sema) {
 
 
 void
-syscall_sema_up (struct semaphore *sema) {
+wait_sema_up (struct semaphore *sema) {
 	enum intr_level old_level;
 	ASSERT (sema != NULL);
 	struct list * waiter;
@@ -102,13 +102,47 @@ syscall_sema_up (struct semaphore *sema) {
 	waiter = &sema->waiters;
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters)) {
-			thread_unblock (list_entry (list_pop_front (&sema->waiters),
-					struct thread, sema_elem));
+
+			find_elem = list_begin(waiter);
+
+			struct thread* find_thread;
+			struct list * children_list;
+			struct list * tread_tep;
+			struct list_elem * cur;
+			bool find;
+
+			while (find_elem != list_end(waiter))
+			{	
+				find_thread = list_entry(find_elem,struct thread, wait_elem);
+				children_list = &find_thread->children_list;
+
+				cur = list_begin(children_list);
+				while (cur != list_end(children_list))
+				{
+					struct thread_exit_pack* cur_tep;
+					cur_tep = list_entry(cur,struct thread_exit_pack,elem);
+					if(cur_tep->tid == thread_current()->tid){
+						// printf("thread_current_tid = %d\n",thread_current()->tid);
+						// printf("find_tid = %d\n",find_thread->tid);
+						// printf("sema_up tid = %d\n",cur_tep->tid);
+						thread_unblock_custom(find_thread);
+						find = true;
+						break;
+					}
+					cur = list_next(cur);
+				}
+				if(find){
+					break;
+				}
+				find_elem = list_next(find_elem);
+			}
+			
+			// thread_unblock (list_entry (list_pop_front (&sema->waiters),
+			// 		struct thread, sema_elem));
 		// find_elem = list_begin(waiter);
 		// while(find_elem != list_end(waiter)){
 		// 	find_thread = list_entry(find_elem,struct thread, wait_elem);
-
-		// 	if(find_thread->wait_number == thread_current()->tid){
+		// 	if(wait_number == thread_current()->tid){
 		// 		list_remove(find_elem);
 		// 		thread_unblock_custom(find_thread);
 		// 		break;

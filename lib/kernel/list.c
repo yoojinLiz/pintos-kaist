@@ -1,6 +1,7 @@
 #include "list.h"
 #include "../debug.h"
 #include "threads/thread.h"
+#include <stdio.h>
 
 /* Our doubly linked lists have two header elements: the "head"
    just before the first element and the "tail" just after the
@@ -490,26 +491,28 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 }
 
 
-int
-find_exit_code(struct list *find_list,int find_tid){
-	struct list_elem *curr;
-	struct thread * find_thread;
+// int
+// find_exit_code(struct list *find_list,int find_tid){
+// 	struct list_elem *curr;
+// 	struct thread * find_thread;
 
-	if(list_empty(find_list)){
-		return -2;
-	}
-	curr = list_begin(find_list);
+// 	if(list_empty(find_list)){
+// 		return EXIT_CODE_ERROR;
+// 	}
+// 	curr = list_begin(find_list);
 
-	while (list_end(find_list) != curr)
-	{	
-		find_thread = list_entry (curr, struct thread, elem);
-		if(find_thread->tid == find_tid){
-			return find_thread->exit_code;
-		}
-		curr = list_next(curr);	
-	}
-	return -2;
-}
+// 	while (list_end(find_list) != curr)
+// 	{	
+// 		find_thread = list_entry (curr, struct thread, elem);
+// 		if(find_thread->tid == find_tid){
+// 			printf("find_thread_tid = %d\n",find_thread->tid);
+// 			printf("find_thread_exit_code = %d\n",find_thread->exit_code);
+// 			return find_thread->exit_code;
+// 		}
+// 		curr = list_next(curr);	
+// 	}
+// 	return EXIT_CODE_DEFAULT;
+// }
 
 int get_count_list(struct list *find_list){
 	if (list_empty(find_list))
@@ -537,11 +540,15 @@ find_children_list(struct list *find_list,int find_tid){
 	if(list_empty(find_list)){
 		return NULL;
 	}
+
 	curr = list_begin(find_list);
+
 	while (list_end(find_list) != curr)
 	{	
 		find_tep = list_entry (curr, struct thread_exit_pack, elem);
 		if(find_tep->tid == find_tid){
+			// 잘못된값
+			// printf("find_tep_tid = %d find_tep_exit_code = %d\n",find_tep->tid,find_tep->exit_code);
 			return find_tep;
 		}
 		curr = list_next(curr);	

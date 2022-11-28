@@ -229,6 +229,8 @@ tid_t thread_create(const char *name, int priority,
 	// list_push_back(children_list,&t->children_elem);
 	struct thread_exit_pack * tep = (struct thread_exit_pack*)malloc(sizeof(struct thread_exit_pack));
 	tep->tid = t->tid;
+	tep->exit_code = EXIT_CODE_DEFAULT;
+	// printf("new exit code = %d\n",tep->exit_code);
 	list_push_back(children_list,&tep->elem);
 
 	// t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
@@ -334,13 +336,13 @@ tid_t thread_tid(void)
 void thread_exit(void)
 {
 	ASSERT(!intr_context());
+	// printf("exit now tid = %d\n",thread_current()->tid);
+	// printf("exit now code = %d\n",thread_current()->exit_code);
+	// printf("now sema value = %d\n",thread_current()->parent_sema.value);
 
-
-	// printf("now tid = %d\n",thread_current()->tid);
 #ifdef USERPROG
 	process_exit();
 #endif
-	// printf("now sema value = %d\n",thread_current()->parent_sema.value);
 	// struct list_elem * redy =list_begin(&ready_list);
 	// struct thread* th = list_entry(redy,struct thread,elem);
 	// printf("list first tid = %d\n",th->tid);
@@ -498,7 +500,7 @@ init_thread(struct thread *t, const char *name, int priority)
 
 	sema_init(&t->wait_sema,0);
 	t->make_child_success = true;
-	t->exit_code = -1;
+	t->exit_code = EXIT_CODE_DEFAULT;
 	
 
 }
@@ -840,15 +842,15 @@ void refresh_priority(void)
 	}
 }
 
-int exit_code_dead_child(int tid)
-{
+// int exit_code_dead_child(int tid)
+// {
 	
-	if (list_empty(&thread_current()->children_list))
-	{
-		return -1;
-	}
-	return find_exit_code(&thread_current()->children_list, tid);
-}
+// 	if (list_empty(&thread_current()->children_list))
+// 	{
+// 		return -1;
+// 	}
+// 	return find_exit_code(&thread_current()->children_list, tid);
+// }
 
 void syscall_wait_sema_down(){
 	enum intr_level old_level;
@@ -874,12 +876,14 @@ void process_fork_sema_up(){
 }
 
 // struct thread* check_exist(int pid){
-struct  thread_exit_pack* check_exist(int pid){
+struct thread_exit_pack* check_exist(int pid){
+
 	struct thread* cur = thread_current();
 	struct list* list = &cur->children_list;
 
 	if(list_empty(list)){
 		return NULL;
 	}
+
 	return find_children_list(list,pid);
 }

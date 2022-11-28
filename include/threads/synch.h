@@ -44,7 +44,6 @@ bool cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, voi
 
 //* 1주차 프로젝트 동안 추가한 함수 (priority donation)
 bool cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
-void syscall_sema_down (struct semaphore *sema);
 
 
 //* 2주차 추가함수
@@ -53,7 +52,9 @@ fork_sema_up (struct semaphore *sema);
 void
 fork_sema_down (struct semaphore *sema);
 void
-syscall_sema_up (struct semaphore *sema);
+wait_sema_up (struct semaphore *sema);
+void
+wait_sema_down (struct semaphore *sema);
 
 /* Optimization barrier.
  *

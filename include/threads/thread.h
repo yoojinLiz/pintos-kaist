@@ -14,6 +14,8 @@
 
 #define USERPROG
 
+#define EXIT_CODE_DEFAULT -2
+#define EXIT_CODE_ERROR -1
 /* States in a thread's life cycle. */
 enum thread_status
 {
@@ -111,7 +113,7 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-	short exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
+	int exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
 
 	struct thread * parent_thread;					//* 2주차 수정 : 부모 프로레스(스레드)의 tid
 	struct list children_list;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
@@ -121,6 +123,7 @@ struct thread
 	struct list_elem wait_elem;
 	struct semaphore wait_sema;
 	bool make_child_success;
+	int wait_num;
 
 	int fd_count;
 	struct list fd_list;
@@ -193,7 +196,7 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-int exit_code_dead_child(int tid);
+// int exit_code_dead_child(int tid);
 void syscall_wait_sema_down();
 void syscall_wait_sema_up();
 
@@ -202,7 +205,7 @@ void process_fork_sema_up();
 
 // struct thread* check_exist(int pid);
 struct thread_exit_pack* check_exist(int pid);
-int
-find_exit_code(struct list *find_list,int find_tid);
+// int
+// find_exit_code(struct list *find_list,int find_tid);
 void thread_unblock_custom(struct thread *t);
 #endif /* threads/thread.h */
