@@ -267,7 +267,7 @@ int syscall_open (struct intr_frame *f){
 	fd_list = &thread_current()->fd_list;
 	
 	// lock_acquire(&filesys_lock);
-	open_file = filesys_open(f->R.rdi);
+	struct file *open_file = filesys_open(f->R.rdi);
 	// lock_release(&filesys_lock);
 
 	if(open_file == NULL){
@@ -303,8 +303,6 @@ int syscall_filesize (struct intr_frame *f){
 		return -1;
 	}
 	int size = file_length (find_fd->file); //* file_length 함수에서 아래의 두 작업을 진행합니다!
-	// struct inode * find_inode = file_get_inode(find_fd->file);
-	// int size = inode_length(find_inode);
 	f->R.rax = size;
 	return size;
 }
@@ -368,7 +366,7 @@ void syscall_write(struct intr_frame *f){
 	}
 
 
-	write_fd = list_entry(write_elem, struct fd, elem);
+	// write_fd = list_entry(write_elem, struct fd, elem);
 
 	if(write_fd == NULL || write_fd->file->deny_write){
 		f->R.rax = -1;
@@ -434,7 +432,7 @@ void syscall_close (struct intr_frame *f){
 
 	// fd_list = list_entry(find_elem, struct fd, elem);
 
-	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
+	// struct fd *find_fd = list_entry(find_elem, struct fd, elem);
 	lock_acquire(&filesys_lock);
 
 	file_close(find_fd->file);
