@@ -226,15 +226,12 @@ tid_t thread_create(const char *name, int priority,
 
 	t->parent_thread = thread_current();
 	struct list * children_list = &thread_current()->children_list;
-	// list_push_back(children_list,&t->children_elem);
-	struct thread_exit_pack * tep = (struct thread_exit_pack*)malloc(sizeof(struct thread_exit_pack));
+	struct child_info * tep = (struct child_info*)malloc(sizeof(struct child_info));
 	tep->tid = t->tid;
 	tep->exit_code = EXIT_CODE_DEFAULT;
-	// printf("new exit code = %d\n",tep->exit_code);
 	list_push_back(children_list,&tep->elem);
 
-	// t->parent_tid = thread_current()->tid;							//* 2주차 수정 : 현재 스레드의 tid를 현재 생성중인 스레드의 부모로 추가
-	// list_push_back(&thread_current()->children, &t->children_elem); //* 현재스레드의 자식 리스트에 생성중인 스레드를 추가
+
 
 	/* Add to run queue. */
 	thread_unblock(t);
@@ -282,7 +279,7 @@ void thread_unblock(struct thread *t)
 	intr_set_level(old_level);
 }
 
-void thread_unblock_custom(struct thread *t)
+void thread_unblock_front(struct thread *t)
 {
 	enum intr_level old_level;
 
@@ -842,30 +839,6 @@ void refresh_priority(void)
 	}
 }
 
-// int exit_code_dead_child(int tid)
-// {
-	
-// 	if (list_empty(&thread_current()->children_list))
-// 	{
-// 		return -1;
-// 	}
-// 	return find_exit_code(&thread_current()->children_list, tid);
-// }
-
-void syscall_wait_sema_down(){
-	enum intr_level old_level;
-	old_level = intr_disable();
-	// syscall_sema_down(&wait_sema);
-	intr_set_level(old_level);
-}
-
-
-void syscall_wait_sema_up(){
-	enum intr_level old_level;
-	old_level = intr_disable();
-	// syscall_sema_up(&wait_sema);
-	intr_set_level(old_level);
-}
 
 void process_fork_sema_down(){
 	fork_sema_down(&fork_sema);
@@ -875,15 +848,4 @@ void process_fork_sema_up(){
 	fork_sema_up(&fork_sema);
 }
 
-// struct thread* check_exist(int pid){
-struct thread_exit_pack* check_exist(int pid){
 
-	struct thread* cur = thread_current();
-	struct list* list = &cur->children_list;
-
-	if(list_empty(list)){
-		return NULL;
-	}
-
-	return find_children_list(list,pid);
-}

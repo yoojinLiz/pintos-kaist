@@ -132,8 +132,6 @@ syscall_handler (struct intr_frame *f) {
 
 	// !전체 시스템 콜에 영향을 주는 곳입니다. 최대한 작성을 지양 해주세요
 
-	// print_values(f,0);
-
 	struct syscall_func call = syscall_func[f->R.rax];
 	call.function (f);
 
@@ -148,19 +146,16 @@ void syscall_halt(void){
 
 void syscall_exit(struct intr_frame *f){
 	thread_current()->exit_code = f->R.rdi;
-	// printf("i am out %d\n",thread_current()->tid);
-	// printf("my code is %d\n",thread_current()->exit_code);
 	thread_exit();
 }
 
 
 // fork func parameter : const char *thread_name
 pid_t syscall_fork (struct intr_frame *f){
-	// printf("i will fork %d\n",thread_current()->tid);
+
 	char * thread_name = f->R.rdi;
 	int return_value;
 	return_value = process_fork(thread_name, f);
-	// printf("fork return value =%d\n",return_value);
 	f->R.rax = return_value;
 }
 
@@ -172,8 +167,6 @@ int syscall_exec (struct intr_frame *f){
    //! 저부터 머리 박습니다.. - yj 
 	char *file_name = f->R.rdi;
 	char *fn_copy ;
-
-	// printf("hi!!!! i am %d\n",thread_current()->tid);
 
 	check_addr(file_name);
 	fn_copy = palloc_get_page (0); 
@@ -196,29 +189,25 @@ int syscall_exec (struct intr_frame *f){
 // wait func parameter : pid_t pid
 int syscall_wait (struct intr_frame *f){
 	int pid = f->R.rdi;
-	// printf("i (%d) will wait (%d)\n",thread_current()->tid,pid);
-	struct thread_exit_pack * tep = check_exist(pid);
+	struct child_info * child_info = search_children_list(pid);
 
-	if(tep == NULL){
+	if(child_info == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
 
-	if(tep->exit_code != EXIT_CODE_DEFAULT){
-		int value = tep->exit_code;
-		f->R.rax = value;
-		list_remove(&tep->elem);
-		free(tep);
-		return value;
+	int return_value;
+
+	if(child_info->exit_code == EXIT_CODE_DEFAULT){
+		return_value = process_wait(pid);
+		f->R.rax = return_value;
+	}else{
+		return_value = child_info->exit_code;
+		f->R.rax = return_value;
 	}
 
-	int return_value = 0;
-	return_value = process_wait(pid);
-
-	list_remove(&tep->elem);
-	free(tep);
-
-	f->R.rax = return_value;
+	list_remove(&child_info->elem);
+	free(child_info);
 	return return_value;
 }
 
@@ -231,6 +220,7 @@ bool syscall_create (struct intr_frame *f){
 	if(f->R.rdi == NULL){
 		syscall_abnormal_exit(-1);
 	}
+
 	lock_acquire(&filesys_lock);
 	success = filesys_create(f->R.rdi,f->R.rsi);
 	lock_release(&filesys_lock);
@@ -241,12 +231,15 @@ bool syscall_create (struct intr_frame *f){
 
 // remove func parameter : chonst char *file
 bool syscall_remove (struct intr_frame *f){
+
 	bool success ; 
 	char* file = f->R.rdi ; // rdi : 파일 이름   
 	check_addr(file); 
+
 	lock_acquire(&filesys_lock);
 	success = filesys_remove(file);
 	lock_release(&filesys_lock);
+
 	f->R.rax = success; 
 	return success;
 }
@@ -254,7 +247,6 @@ bool syscall_remove (struct intr_frame *f){
 
 // open func parameter : const char *file
 int syscall_open (struct intr_frame *f){
-
 
 	struct file *open_file;
 	struct list * fd_list;
@@ -267,28 +259,24 @@ int syscall_open (struct intr_frame *f){
 	fd_list = &thread_current()->fd_list;
 	check_addr(f->R.rdi);
 	
-	lock_acquire(&filesys_lock);
+	// lock_acquire(&filesys_lock);
 	open_file = filesys_open(f->R.rdi);
-	lock_release(&filesys_lock);
+	// lock_release(&filesys_lock);
 
 	if(open_file == NULL){
 		f->R.rax = -1;
 		return -1;
 	}
 
-	// if(open_file == -1){
-	// 	syscall_abnormal_exit(-1);
-	// }
 
 	struct fd *fd = (struct fd*)malloc(sizeof(struct fd));
 
 	fd->value = thread_current()->fd_count + 1;
 	fd->file = open_file;
-	// fd->file = NULL;
+
 	list_push_front(fd_list,&fd->elem);
 	thread_current()->fd_count +=1;
 
-	// delete_all_fd();
 	f->R.rax = fd->value;
 	return fd->value;
 	return 0;
@@ -378,17 +366,11 @@ void syscall_write(struct intr_frame *f){
 	}
 
 	write_fd = list_entry(write_elem, struct fd, elem);
-	if(write_fd == NULL){
-		return;
-	}
 
-	if(write_fd->file->deny_write){
+	if(write_fd == NULL || write_fd->file->deny_write){
 		f->R.rax = -1;
-		return;
+		return -1;
 	}
-
-	struct inode * find_inode = file_get_inode(write_fd->file);
-	int filesize = inode_length(find_inode);
 
 	lock_acquire(&filesys_lock);
 	return_value = file_write(write_fd->file,buf,size);
@@ -469,7 +451,6 @@ void syscall_close (struct intr_frame *f){
 
 void syscall_abnormal_exit(short exit_code){
 	thread_current()->exit_code = exit_code;
-	// printf("abnormal exit tid = %d exit code = %d\n",thread_current()->tid,thread_current()->exit_code);
 	thread_exit();
 }
 
@@ -540,8 +521,8 @@ find_elem_match_fd_value(int fd_value){
 	return NULL;
 }
 
-
-void close_all_file(){
+//* 현재스레드의 실행파일 리스트 clear
+void clear_exec_files_list(){
 
 	struct list *exec_list;
 	struct exec_file * e_file;
@@ -584,9 +565,11 @@ void close_one_file(struct file* file){
 		e_file = list_entry(cur,struct exec_file,elem);
 		if(file == e_file->file){
 			list_remove(cur);
+
 			lock_acquire(&filesys_lock);
 			file_close(e_file->file);
 			lock_release(&filesys_lock);
+
 			free(e_file);
 			break;
 		}
@@ -594,37 +577,9 @@ void close_one_file(struct file* file){
 	}
 }
 
-void file_lock_aquire(){
+void file_lock_acquire(){
 	lock_acquire(&filesys_lock);
 }
 void file_lock_release(){
 	lock_release(&filesys_lock);
 }
-
-// void delete_all_fd(){
-
-// 	struct list *fd_list;
-// 	struct fd * delete_fd;
-
-// 	fd_list = &thread_current()->fd_list;
-
-// 	if(list_empty(fd_list)){
-// 		return;
-// 	}
-
-// 	struct list_elem * cur;
-// 	cur = list_begin(fd_list);
-// 	while (true)
-// 	{	
-// 		delete_fd = list_entry(cur,struct fd,elem);
-// 		lock_acquire(&filesys_lock);
-// 		file_close(delete_fd->file);
-// 		lock_release(&filesys_lock);
-// 		cur = list_remove(&delete_fd->elem);
-// 		free(delete_fd);
-// 		if(list_empty(fd_list)){
-// 			return;
-// 		}
-
-// 	}
-// }

@@ -25,12 +25,11 @@ enum thread_status
 	THREAD_DYING	/* About to be destroyed. */
 };
 
-struct thread_exit_pack
+struct child_info
 {
 	uint32_t tid;
 	int exit_code;
 	struct list_elem elem;
-
 };
 
 /* Thread identifier type.
@@ -113,20 +112,27 @@ struct thread
 	struct list donations;			//* 1주차 수정 (priority-donation): 이 쓰레드에게 우선순위를 기부한 쓰레드들의 리스트
 	struct list_elem donation_elem; //* 1주차 수정 (priority-donation) : donation list를 사용하기 위한 list_elem
 
-	int exit_code;					//* 쓰레드가 종료할떄 상태인 exit_code
+	int exit_code; //* 쓰레드가 종료할떄 상태인 exit_code
 
-	struct thread * parent_thread;					//* 2주차 수정 : 부모 프로레스(스레드)의 tid
-	struct list children_list;			//* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
-	struct list_elem children_elem; //* 2주차 수정: 자식 list를 사용하기 위한 list_elem
-	struct list_elem sema_elem;
+	struct thread *parent_thread; //* 2주차 수정 : 부모 프로레스(스레드)의 tid
+	struct list children_list;	  //* 2주차 수정 : 자식 프로세스(스레드)들을 담고있는 list
+
 	struct list_elem fork_elem;
 	struct list_elem wait_elem;
+
 	struct semaphore wait_sema;
+	
+	//* 나를 기다리는 tid
+	tid_t wait_tid;
+	// fork 성공적인지 확인
 	bool make_child_success;
-	int wait_num;
 
 	int fd_count;
+
+	//오픈된 파일 리스트
 	struct list fd_list;
+
+	//실행중인 파일 리스트
 	struct list exec_files_list;
 
 	/* Shared between thread.c and synch.c. */
@@ -196,16 +202,9 @@ void refresh_priority(void);
 
 void do_iret(struct intr_frame *tf);
 
-// int exit_code_dead_child(int tid);
-void syscall_wait_sema_down();
-void syscall_wait_sema_up();
-
+//* 2주차 프로젝트 동안 추가한 함수
 void process_fork_sema_down();
 void process_fork_sema_up();
+void thread_unblock_front(struct thread *t);
 
-// struct thread* check_exist(int pid);
-struct thread_exit_pack* check_exist(int pid);
-// int
-// find_exit_code(struct list *find_list,int find_tid);
-void thread_unblock_custom(struct thread *t);
 #endif /* threads/thread.h */

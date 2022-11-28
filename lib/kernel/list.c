@@ -532,46 +532,25 @@ int get_count_list(struct list *find_list){
 }
 
 
-struct thread_exit_pack*
-find_children_list(struct list *find_list,int find_tid){
+struct child_info*
+search_children_list(int find_tid){
+
+	struct list* find_list = &thread_current()->children_list;
 	struct list_elem *curr;
-	struct thread_exit_pack * find_tep;
+	struct child_info * find_tep;
 	
 	if(list_empty(find_list)){
 		return NULL;
 	}
 
 	curr = list_begin(find_list);
-
 	while (list_end(find_list) != curr)
 	{	
-		find_tep = list_entry (curr, struct thread_exit_pack, elem);
+		find_tep = list_entry (curr, struct child_info, elem);
 		if(find_tep->tid == find_tid){
-			// 잘못된값
-			// printf("find_tep_tid = %d find_tep_exit_code = %d\n",find_tep->tid,find_tep->exit_code);
 			return find_tep;
 		}
 		curr = list_next(curr);	
 	}
 	return NULL;
 }
-
-// struct thread*
-// find_children_list(struct list *find_list,int find_tid){
-// 	struct list_elem *curr;
-// 	struct thread * find_thread;
-	
-// 	if(list_empty(find_list)){
-// 		return NULL;
-// 	}
-// 	curr = list_begin(find_list);
-// 	while (list_end(find_list) != curr)
-// 	{	
-// 		find_thread = list_entry (curr, struct thread, children_elem);
-// 		if(find_thread->tid == find_tid){
-// 			return find_thread;
-// 		}
-// 		curr = list_next(curr);	
-// 	}
-// 	return NULL;
-// }

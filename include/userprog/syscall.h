@@ -56,9 +56,9 @@ bool check_ptr_address(struct intr_frame *f);
 
 void check_addr(void * addr); // 할당받는 유저 메모리 영역인지 확인 후, 아니라면 exit(-1)을 실행하는 함수입니다. (유진 추가)
 struct list_elem* find_elem_match_fd_value(int fd_value);
-void close_all_file();
-void delete_all_fd();
+void clear_exec_files_list();
+void clear_fd_list();
 
-void file_lock_aquire();
+void file_lock_acquire();
 void file_lock_release();
 #endif /* userprog/syscall.h */

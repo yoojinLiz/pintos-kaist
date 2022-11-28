@@ -60,7 +60,6 @@ struct exec_file
 };
 
 
-
 tid_t process_create_initd (const char *file_name);
 tid_t process_fork (const char *name, struct intr_frame *if_);
 int process_exec (void *f_name);
@@ -68,9 +67,10 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (struct thread *next);
 
-char * argument_parsing (char *f_name, struct intr_frame *_if);
 struct thread *get_child_process (tid_t child_tid);
 void copy_fd_list(struct thread* parent,struct thread* child);
-void delete_all_fd();
-
+void clear_fd_list();
+void del_child_info();
+void clear_children_list();
+void update_child_exit_code();
 #endif /* userprog/process.h */
