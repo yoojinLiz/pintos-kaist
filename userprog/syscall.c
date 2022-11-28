@@ -440,7 +440,7 @@ void syscall_close (struct intr_frame *f){
 
 	struct fd *find_fd = list_entry(find_elem, struct fd, elem);
 	lock_acquire(&filesys_lock);
-	close_one_file(find_fd->file);
+	file_close(find_fd->file);
 	list_remove(find_elem);
 	free(find_fd);
 	lock_release(&filesys_lock);
@@ -521,61 +521,6 @@ find_elem_match_fd_value(int fd_value){
 	return NULL;
 }
 
-//* 현재스레드의 실행파일 리스트 clear
-void clear_exec_files_list(){
-
-	struct list *exec_list;
-	struct exec_file * e_file;
-	struct file * copy_file;
-
-	exec_list = &thread_current()->exec_files_list;
-
-	if(list_empty(exec_list)){
-		return;
-	}
-
-	struct list_elem * cur;
-	cur = list_begin(exec_list);
-	while (!list_empty(exec_list))
-	{	
-		e_file = list_entry(cur,struct exec_file,elem);
-		cur = list_remove(cur);
-		lock_acquire(&filesys_lock);
-		file_close(e_file->file);
-		lock_release(&filesys_lock);
-		free(e_file);
-	}
-}
-
-void close_one_file(struct file* file){
-	struct list *exec_list;
-	struct exec_file * e_file;
-	struct file * copy_file;
-
-	exec_list = &thread_current()->exec_files_list;
-
-	if(list_empty(exec_list)){
-		return;
-	}
-
-	struct list_elem * cur;
-	cur = list_begin(exec_list);
-	while (cur != list_end(exec_list))
-	{	
-		e_file = list_entry(cur,struct exec_file,elem);
-		if(file == e_file->file){
-			list_remove(cur);
-
-			lock_acquire(&filesys_lock);
-			file_close(e_file->file);
-			lock_release(&filesys_lock);
-
-			free(e_file);
-			break;
-		}
-		cur = list_next(cur);
-	}
-}
 
 void file_lock_acquire(){
 	lock_acquire(&filesys_lock);

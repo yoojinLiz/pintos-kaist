@@ -133,7 +133,7 @@ struct thread
 	struct list fd_list;
 
 	//실행중인 파일 리스트
-	struct list exec_files_list;
+	struct file* exec_file;
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */

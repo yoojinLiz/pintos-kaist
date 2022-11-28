@@ -137,7 +137,6 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately.*/
-	// printf("va addr = %p\n",va);
 	if is_kernel_vaddr (va)
 	{
 		return true;
@@ -195,7 +194,7 @@ static void
 __do_fork(void *aux)
 {
 	struct intr_frame if_;
-	struct fork_info *fork_info = (struct fork_info **)aux;
+	struct fork_info *fork_info = (struct fork_info *)aux;
 	struct thread *parent = fork_info->parent_t;
 	struct thread *current = thread_current();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
@@ -229,7 +228,6 @@ __do_fork(void *aux)
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
-	//*TODO file duplicate 사용해서 fd와 파일을 새로운 자식에게 입력해준다.
 	copy_fd_list(parent, current);
 	process_init();
 	/* Finally, switch to the newly created process. */
@@ -369,20 +367,19 @@ void process_exit(void)
 	struct thread *curr = thread_current();
 	struct thread *parent = thread_current()->parent_thread;
 
-	struct child_info *tep;
-	struct list *children_list = &parent->children_list;
-	struct list_elem *elem_cur;
 
 	update_child_exit_code();
 	clear_children_list();
-	clear_exec_files_list();
 	clear_fd_list();
 
 	if (curr->pml4 > KERN_BASE)
 		printf("%s: exit(%d)\n", curr->name, curr->exit_code);
 
+	if(thread_current()->exec_file !=NULL){
+		file_close(thread_current()->exec_file);
+		thread_current()->exec_file = NULL;
+	}
 	process_cleanup();
-	// wait_sema_up(&parent->wait_sema);
 	sema_up(&parent->wait_sema);
 }
 
@@ -456,19 +453,26 @@ load(const char *file_name, struct intr_frame *if_)
 	process_activate(thread_current());
 
 	/* Open executable file. */
+	file_lock_acquire();
 	file = filesys_open(file_name);
+	file_lock_release();
 	if (file == NULL)
 	{
+		
 		printf("load: %s: open failed\n", file_name);
 		goto done;
 	}
 
+
 	/* Read and verify executable header. */
+	file_lock_acquire();
 	if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\2\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 0x3E || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Phdr) || ehdr.e_phnum > 1024)
 	{
 		printf("load: %s: error loading executable\n", file_name);
+		file_lock_release();
 		goto done;
 	}
+	file_lock_release();
 
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
@@ -480,8 +484,12 @@ load(const char *file_name, struct intr_frame *if_)
 			goto done;
 		file_seek(file, file_ofs);
 
-		if (file_read(file, &phdr, sizeof phdr) != sizeof phdr)
+		file_lock_acquire();
+		if (file_read(file, &phdr, sizeof phdr) != sizeof phdr){
+			file_lock_release();
 			goto done;
+		}
+		file_lock_release();
 		file_ofs += sizeof phdr;
 		switch (phdr.p_type)
 		{
@@ -536,12 +544,8 @@ load(const char *file_name, struct intr_frame *if_)
 	if_->rip = ehdr.e_entry; // rip = 프로그램카운터  rbp = 스택 bp, rsp = 스택포인터
 
 	success = true;
+	thread_current()->exec_file = file;
 	file_deny_write(file);
-
-	struct exec_file *e_file = (struct exec_file *)malloc(sizeof(struct exec_file));
-	e_file->file = file;
-	struct list *exec_list = &thread_current()->exec_files_list;
-	list_push_front(exec_list, &e_file->elem);
 
 done:
 	/* We arrive here whether the load is successful or not. */
@@ -773,7 +777,6 @@ setup_stack(struct intr_frame *if_)
 
 void copy_fd_list(struct thread *parent, struct thread *child)
 {
-
 	struct list *p_fd_list, *c_fd_list;
 	struct fd *find_fd;
 	struct file *copy_file;
@@ -798,7 +801,7 @@ void copy_fd_list(struct thread *parent, struct thread *child)
 			struct fd *new_fd = (struct fd *)malloc(sizeof(struct fd));
 			new_fd->file = copy_file;
 			new_fd->value = find_fd->value;
-			child->fd_count += 1;
+			child->fd_count  = parent->fd_count;
 			list_push_front(c_fd_list, &new_fd->elem);
 		}
 		cur = list_next(cur);
